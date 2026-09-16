@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 
 type ContractOption = { id: string; contract_number: string; customerName: string };
+type ReservationOption = { id: string; reference: string; customerName: string };
 
 function Field({ label, name, error, children }: { label: string; name: string; error?: string; children: React.ReactNode }) {
   return (
@@ -34,21 +35,31 @@ function Submit() {
 
 export function PaymentForm({
   contracts,
+  reservations,
   defaultContractId,
+  defaultReservationId,
   backHref,
 }: {
   contracts: ContractOption[];
+  reservations: ReservationOption[];
   defaultContractId?: string;
+  defaultReservationId?: string;
   backHref: string;
 }) {
   const [state, action] = useActionState<PaymentFormState, FormData>(createPayment, {});
   const fe = state.fieldErrors ?? {};
   const router = useRouter();
+  // A key belongs to one mounted submission attempt.  `useId()` is stable
+  // across navigations in Next and can collide with a later legitimate
+  // payment; a UUID keeps retries idempotent while allowing a new page to
+  // create a new payment.
+  const [idempotencyKey] = useState(() => typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => {
     if (state.success && state.redirectTo) {
       router.push(state.redirectTo);
-      router.refresh();
     }
   }, [state.success, state.redirectTo, router]);
 
@@ -56,6 +67,7 @@ export function PaymentForm({
 
   return (
     <form action={action} className="space-y-6">
+      <input type="text" className="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
       <Card>
         <CardHeader><CardTitle className="text-base">Détails du paiement</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -69,6 +81,17 @@ export function PaymentForm({
               </Select>
             </Field>
           </div>
+          <div className="sm:col-span-2">
+            <Field label="Réservation (optionnel)" name="reservation_id" error={fe.reservation_id}>
+              <Select id="reservation_id" name="reservation_id" defaultValue={defaultReservationId ?? ""}>
+                <option value="">— Sans réservation —</option>
+                {reservations.map((r) => (
+                  <option key={r.id} value={r.id}>{r.reference} — {r.customerName}</option>
+                ))}
+              </Select>
+            </Field>
+            <p className="mt-1 text-xs text-muted-foreground">Utilisez ce lien pour enregistrer une avance ou un remboursement avant la création du contrat.</p>
+          </div>
           <Field label="Montant (MAD)" name="amount" error={fe.amount}>
             <Input id="amount" name="amount" type="number" step="0.01" min={0} required placeholder="0.00" />
           </Field>
@@ -79,6 +102,7 @@ export function PaymentForm({
             <Select id="type" name="type" defaultValue="RENTAL">
               <option value="RENTAL">Location</option>
               <option value="DEPOSIT">Caution</option>
+              <option value="DEPOSIT_REFUND">Restitution de caution</option>
               <option value="EXTRA">Supplément</option>
               <option value="PENALTY">Pénalité</option>
               <option value="REFUND">Remboursement</option>

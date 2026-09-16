@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results
+/.playwright
+
+# local Supabase CLI state
+/supabase/.temp/
 
 # next.js
 /.next/

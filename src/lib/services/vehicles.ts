@@ -32,6 +32,18 @@ export type FleetStats = {
   byStatus: Record<Enums<"vehicle_status">, number>;
 };
 
+export function computeFleetStats(rows: Array<Pick<VehicleRow, "status">>): FleetStats {
+  const byStatus: Record<Enums<"vehicle_status">, number> = {
+    AVAILABLE: 0,
+    RENTED: 0,
+    MAINTENANCE: 0,
+    OUT_OF_SERVICE: 0,
+    RESERVED: 0,
+  };
+  for (const v of rows) byStatus[v.status]++;
+  return { total: rows.length, byStatus };
+}
+
 export async function getFleetStats(agencyId: string): Promise<FleetStats> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -40,14 +52,5 @@ export async function getFleetStats(agencyId: string): Promise<FleetStats> {
     .eq("agency_id", agencyId)
     .is("deleted_at", null);
 
-  const byStatus: Record<Enums<"vehicle_status">, number> = {
-    AVAILABLE: 0,
-    RENTED: 0,
-    MAINTENANCE: 0,
-    OUT_OF_SERVICE: 0,
-    RESERVED: 0,
-  };
-  for (const v of data ?? []) byStatus[v.status]++;
-
-  return { total: data?.length ?? 0, byStatus };
+  return computeFleetStats(data ?? []);
 }

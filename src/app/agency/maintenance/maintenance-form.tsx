@@ -60,7 +60,7 @@ export function MaintenanceForm({
     return (
       <Card>
         <CardContent className="p-8 text-center text-sm text-muted-foreground">
-          Ajoutez d'abord un <Link href="/agency/fleet/new" className="text-primary underline">véhicule</Link>.
+           Ajoutez d&apos;abord un <Link href="/agency/fleet/new" className="text-primary underline">véhicule</Link>.
         </CardContent>
       </Card>
     );
@@ -76,7 +76,7 @@ export function MaintenanceForm({
               {vehicles.map((v) => <option key={v.id} value={v.id}>{v.brand} {v.model} ({v.license_plate})</option>)}
             </Select>
           </Field>
-          <Field label="Type d'intervention" name="type" error={fe.type}>
+           <Field label={"Type d'intervention"} name="type" error={fe.type}>
             <Select id="type" name="type" defaultValue="OIL_CHANGE">
               <option value="OIL_CHANGE">Vidange</option>
               <option value="TIRES">Pneus</option>
@@ -86,7 +86,7 @@ export function MaintenanceForm({
               <option value="OTHER">Autre</option>
             </Select>
           </Field>
-          <Field label="Date de l'intervention" name="service_date" error={fe.service_date}>
+           <Field label={"Date de l'intervention"} name="service_date" error={fe.service_date}>
             <Input id="service_date" name="service_date" type="date" defaultValue={today} required />
           </Field>
           <Field label="Prochaine échéance" name="next_service_date" error={fe.next_service_date}>
@@ -111,7 +111,7 @@ export function MaintenanceForm({
           </Field>
           <div className="sm:col-span-2">
             <Field label="Description" name="description" error={fe.description}>
-              <Textarea id="description" name="description" placeholder="Détails de l'intervention…" />
+               <Textarea id="description" name="description" placeholder={"Détails de l'intervention…"} />
             </Field>
           </div>
           <div className="sm:col-span-2 flex items-center gap-2">

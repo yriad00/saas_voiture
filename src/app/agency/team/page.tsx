@@ -5,6 +5,7 @@ import { AddMember } from "./add-member";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { MemberStatusAction } from "./member-status-action";
 
 export const metadata = { title: "Équipe — FleetHub" };
 
@@ -12,11 +13,19 @@ export default async function TeamPage() {
   const ctx = await requireAgency();
   const supabase = await createClient();
 
-  const { data: members } = await supabase
-    .from("agency_members")
-    .select("id, status, profiles!inner(full_name, email, phone), roles!inner(name, key)")
-    .eq("agency_id", ctx.membership.agencyId)
-    .order("created_at", { ascending: true });
+  const [{ data: members }, { data: branches }] = await Promise.all([
+    supabase
+      .from("agency_members")
+      .select("id, status, branch_id, profiles!inner(full_name, email, phone), roles!inner(name, key)")
+      .eq("agency_id", ctx.membership.agencyId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("branches")
+      .select("id, name, code")
+      .eq("agency_id", ctx.membership.agencyId)
+      .eq("active", true)
+      .order("name"),
+  ]);
 
   const canManage = ["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey);
 
@@ -25,7 +34,7 @@ export default async function TeamPage() {
       <PageHeader
         title="Équipe"
         description="Les personnes ayant accès à cette agence et leurs rôles."
-        action={canManage ? <AddMember /> : undefined}
+        action={canManage ? <AddMember branches={branches ?? []} /> : undefined}
       />
 
       <Card>
@@ -37,7 +46,9 @@ export default async function TeamPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Téléphone</TableHead>
                 <TableHead>Rôle</TableHead>
+                <TableHead>Branche</TableHead>
                 <TableHead>Statut</TableHead>
+                {canManage && <TableHead />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -50,11 +61,15 @@ export default async function TeamPage() {
                     <TableCell className="text-muted-foreground">{p.email}</TableCell>
                     <TableCell className="text-muted-foreground">{p.phone ?? "—"}</TableCell>
                     <TableCell>{r.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {m.branch_id ? (branches ?? []).find((b) => b.id === m.branch_id)?.name ?? "—" : "Toutes"}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={m.status === "active" ? "success" : "secondary"}>
                         {m.status === "active" ? "Actif" : m.status === "invited" ? "Invité" : "Désactivé"}
                       </Badge>
                     </TableCell>
+                    {canManage && <TableCell><MemberStatusAction id={m.id} status={m.status} /></TableCell>}
                   </TableRow>
                 );
               })}

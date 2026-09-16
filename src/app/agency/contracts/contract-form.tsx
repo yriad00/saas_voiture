@@ -20,6 +20,7 @@ export type ContractPrefill = {
   end_date?: string;
   daily_rate?: number;
   total_amount?: number;
+  one_way_fee?: number;
 };
 
 function Field({ label, name, error, children }: { label: string; name: string; error?: string; children: React.ReactNode }) {
@@ -51,10 +52,14 @@ export function ContractForm({
   customers,
   vehicles,
   prefill,
+  defaultTerms,
+  defaultTermsAr,
 }: {
   customers: CustomerOption[];
   vehicles: VehicleOption[];
   prefill?: ContractPrefill;
+  defaultTerms?: string;
+  defaultTermsAr?: string;
 }) {
   const [state, action] = useActionState<ContractFormState, FormData>(createContract, {});
   const fe = state.fieldErrors ?? {};
@@ -86,7 +91,7 @@ export function ContractForm({
 
   return (
     <form action={action} className="space-y-6">
-      {prefill?.reservation_id && <input type="hidden" name="reservation_id" value={prefill.reservation_id} />}
+      {prefill?.reservation_id && <input type="hidden" name="reservation_id" value={prefill.reservation_id}  readOnly />}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Client & véhicule</CardTitle></CardHeader>
@@ -113,6 +118,12 @@ export function ContractForm({
           <Field label="Date de fin" name="end_date" error={fe.end_date}>
             <Input id="end_date" name="end_date" type="date" defaultValue={prefill?.end_date ?? ""} required />
           </Field>
+          <Field label="Heure de début" name="start_time" error={fe.start_time}>
+            <Input id="start_time" name="start_time" type="time" defaultValue="10:00" required />
+          </Field>
+          <Field label="Heure de fin" name="end_time" error={fe.end_time}>
+            <Input id="end_time" name="end_time" type="time" defaultValue="10:00" required />
+          </Field>
           <Field label="Kilométrage au départ" name="start_mileage" error={fe.start_mileage}>
             <Input id="start_mileage" name="start_mileage" type="number" min={0} placeholder="Ex. 45000" />
           </Field>
@@ -128,11 +139,14 @@ export function ContractForm({
           <Field label="Tarif journalier (MAD)" name="daily_rate" error={fe.daily_rate}>
             <Input id="daily_rate" name="daily_rate" type="number" step="0.01" min={0} defaultValue={prefill?.daily_rate ?? 0} />
           </Field>
-          <Field label="Montant total (MAD)" name="total_amount" error={fe.total_amount}>
+          <Field label="Montant location hors frais aller simple (MAD)" name="total_amount" error={fe.total_amount}>
             <Input id="total_amount" name="total_amount" type="number" step="0.01" min={0} defaultValue={prefill?.total_amount ?? 0} />
           </Field>
           <Field label="Caution (MAD)" name="deposit_amount" error={fe.deposit_amount}>
             <Input id="deposit_amount" name="deposit_amount" type="number" step="0.01" min={0} value={deposit} onChange={(e) => setDeposit(Number(e.target.value))} />
+          </Field>
+          <Field label="Frais aller simple (MAD)" name="one_way_fee" error={fe.one_way_fee}>
+            <Input id="one_way_fee" name="one_way_fee" type="number" step="0.01" min={0} defaultValue={prefill?.one_way_fee ?? 0} />
           </Field>
         </CardContent>
       </Card>
@@ -140,9 +154,11 @@ export function ContractForm({
       <Card>
         <CardHeader><CardTitle className="text-base">Conditions</CardTitle></CardHeader>
         <CardContent>
+          <div className="mb-4 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3"><div className="space-y-1.5"><Label htmlFor="contract_language">Langue du contrat</Label><Select id="contract_language" name="contract_language" defaultValue="FR"><option value="FR">Français</option><option value="AR">العربية</option><option value="BILINGUAL">Français + العربية</option></Select></div><div className="space-y-1.5"><Label htmlFor="early_return_policy">Retour anticipé</Label><Select id="early_return_policy" name="early_return_policy" defaultValue="MANAGER_DECISION"><option value="NO_REFUND">Pas de remboursement</option><option value="RECALCULATE">Recalcul automatique</option><option value="PARTIAL_REFUND">Remboursement partiel</option><option value="MANAGER_DECISION">Décision manager</option></Select></div></div>
           <Field label="Termes du contrat" name="terms" error={fe.terms}>
-            <Textarea id="terms" name="terms" rows={6} defaultValue={DEFAULT_TERMS} />
+            <Textarea id="terms" name="terms" rows={6} defaultValue={defaultTerms || DEFAULT_TERMS} />
           </Field>
+            <div className="mt-4" dir="rtl"><Field label="الشروط بالعربية (اختياري)" name="terms_ar" error={fe.terms_ar}><Textarea id="terms_ar" name="terms_ar" rows={6} dir="rtl" defaultValue={defaultTermsAr || ""} placeholder="أدخل الشروط العربية القابلة للتعديل من الإعدادات…" /></Field></div>
         </CardContent>
       </Card>
 

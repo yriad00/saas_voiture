@@ -53,6 +53,7 @@ export const RESERVATION_STATUS: Record<Enums<"reservation_status">, { label: st
   ONGOING: { label: "En cours", variant: "success" },
   COMPLETED: { label: "Terminée", variant: "secondary" },
   CANCELLED: { label: "Annulée", variant: "destructive" },
+  NO_SHOW: { label: "Client absent", variant: "destructive" },
 };
 
 // ============ CONTRACTS ============
@@ -73,6 +74,7 @@ export const PAYMENT_METHOD: Record<Enums<"payment_method">, string> = {
 
 export const PAYMENT_TYPE: Record<Enums<"payment_type">, string> = {
   DEPOSIT: "Caution",
+  DEPOSIT_REFUND: "Restitution de caution",
   RENTAL: "Location",
   REFUND: "Remboursement",
   PENALTY: "Pénalité",
@@ -84,6 +86,17 @@ export const PAYMENT_STATUS: Record<Enums<"payment_status">, { label: string; va
   COMPLETED: { label: "Payé", variant: "success" },
   REFUNDED: { label: "Remboursé", variant: "secondary" },
   FAILED: { label: "Échoué", variant: "destructive" },
+};
+
+export const EXPENSE_CATEGORY: Record<string, string> = {
+  FUEL: "Carburant",
+  INSURANCE: "Assurance",
+  TAX: "Taxes et vignettes",
+  RENT: "Loyer",
+  SALARY: "Salaires",
+  MARKETING: "Marketing",
+  SUPPLIES: "Fournitures",
+  OTHER: "Autre",
 };
 
 // ============ MAINTENANCE ============

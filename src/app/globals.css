@@ -4,43 +4,43 @@
    Design tokens — a calm, professional SaaS palette (light + dark).
    ───────────────────────────────────────────────────────────── */
 :root {
-  --background: #f7f8fa;
+  --background: #f5f7fb;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #4f46e5;
-  --primary: #4f46e5;
+  --border: #e5eaf2;
+  --input: #dfe6f0;
+  --ring: #635bff;
+  --primary: #635bff;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
-  --accent: #eef2ff;
-  --accent-foreground: #4338ca;
+  --accent: #efefff;
+  --accent-foreground: #5147d9;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --success: #16a34a;
   --warning: #d97706;
-  --sidebar: #0f172a;
+  --sidebar: #0b1020;
   --sidebar-foreground: #cbd5e1;
   --sidebar-accent: #1e293b;
-  --radius: 0.65rem;
+  --radius: 0.8rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b1120;
+    --background: #080d1b;
     --foreground: #e2e8f0;
-    --card: #111827;
+    --card: #101827;
     --card-foreground: #e2e8f0;
     --muted: #1e293b;
     --muted-foreground: #94a3b8;
-    --border: #1e293b;
-    --input: #1e293b;
-    --ring: #6366f1;
-    --primary: #6366f1;
+    --border: #202d43;
+    --input: #26344d;
+    --ring: #7c73ff;
+    --primary: #7c73ff;
     --primary-foreground: #ffffff;
     --secondary: #1e293b;
     --secondary-foreground: #e2e8f0;
@@ -91,10 +91,26 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28rem),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Arabic contract text should use a glyph-complete system fallback both on
+   screen and when the browser exports the printable contract to PDF. */
+[dir="rtl"],
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+.contract-print-document[dir="rtl"],
+.contract-print-document [dir="rtl"] {
+  font-family: "Noto Naskh Arabic", "Noto Sans Arabic", Tahoma, Arial, sans-serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -164,6 +180,10 @@ textarea {
     transform: translateX(100%);
   }
 }
+@keyframes fh-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
 
 .fh-animate-in {
   animation: fh-fade-in 0.3s ease both;
@@ -201,4 +221,21 @@ textarea {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--foreground) 35%, transparent);
   border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+
+  aside,
+  nav,
+  button,
+  a[href] {
+    display: none !important;
+  }
+
+  main {
+    width: 100% !important;
+  }
 }

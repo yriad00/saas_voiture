@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableSearch } from "@/components/ui/table-search";
-import { formatDate } from "@/lib/utils";
 import { ID_DOCUMENT_TYPE } from "@/lib/labels";
+import { ImportPanel } from "../import/import-panel";
+import { ExportButtons } from "../export-buttons";
 
 export const metadata = { title: "Clients — FleetHub" };
 
@@ -20,13 +21,30 @@ export default async function CustomersPage() {
     <>
       <PageHeader
         title="Clients"
-        description="Votre base de clients — coordonnées, pièces d'identité et permis."
+        description="Retrouvez rapidement un client, ses pièces et son historique de location."
         action={
-          <Button asChild>
-            <Link href="/agency/customers/new"><Plus /> Ajouter un client</Link>
-          </Button>
+          <>
+            <ExportButtons
+              filename="clients-fleethub"
+              columns={[
+                { key: "first_name", label: "Prénom" },
+                { key: "last_name", label: "Nom" },
+                { key: "phone", label: "Téléphone" },
+                { key: "email", label: "Email" },
+                { key: "id_type", label: "Type pièce" },
+                { key: "id_number", label: "N° pièce" },
+                { key: "city", label: "Ville" },
+              ]}
+              rows={customers}
+            />
+            <Button asChild>
+              <Link href="/agency/customers/new"><Plus /> Ajouter un client</Link>
+            </Button>
+          </>
         }
       />
+
+      <ImportPanel kind="customers" />
 
       {customers.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
@@ -53,10 +71,8 @@ export default async function CustomersPage() {
                 <TableRow>
                   <TableHead>Client</TableHead>
                   <TableHead>Téléphone</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Pièce</TableHead>
                   <TableHead>Ville</TableHead>
-                  <TableHead>Ajouté le</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -71,16 +87,14 @@ export default async function CustomersPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm">{c.phone ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{c.email ?? "—"}</TableCell>
                     <TableCell className="text-sm">
                       {ID_DOCUMENT_TYPE[c.id_type]}{c.id_number ? ` · ${c.id_number}` : ""}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.city ?? "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(c.created_at)}</TableCell>
                   </TableRow>
                 ))}
                 <tr data-empty-row hidden>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
                     Aucun client ne correspond à votre recherche.
                   </TableCell>
                 </tr>

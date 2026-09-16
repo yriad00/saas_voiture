@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Plus, FileText } from "lucide-react";
 import { requireAgency } from "@/lib/auth/session";
-import { listContracts, getContractStats } from "@/lib/services/contracts";
+import { listContracts, computeContractStats } from "@/lib/services/contracts";
 import { StatCard, PageHeader } from "@/components/layout/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,10 +15,8 @@ export const metadata = { title: "Contrats — FleetHub" };
 
 export default async function ContractsPage() {
   const ctx = await requireAgency();
-  const [contracts, stats] = await Promise.all([
-    listContracts(ctx.membership.agencyId),
-    getContractStats(ctx.membership.agencyId),
-  ]);
+  const contracts = await listContracts(ctx.membership.agencyId);
+  const stats = computeContractStats(contracts);
 
   return (
     <>

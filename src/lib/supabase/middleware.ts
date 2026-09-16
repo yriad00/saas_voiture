@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
+import { measurePerf } from "@/lib/perf";
 
 /**
  * Refreshes the Supabase auth session on every request and enforces the
@@ -33,7 +34,7 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: getUser() revalidates the token with Supabase (do not trust getSession alone).
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await measurePerf("middleware.auth.getUser", () => supabase.auth.getUser());
 
   const path = request.nextUrl.pathname;
   const isAuthRoute = path.startsWith("/login") || path.startsWith("/auth");

@@ -71,6 +71,12 @@ export function CustomerForm({ customer }: { customer?: Customer }) {
           <Field label="Téléphone" name="phone" error={fe.phone}>
             <Input id="phone" name="phone" defaultValue={customer?.phone ?? ""} placeholder="+212 6 00 00 00 00" />
           </Field>
+          <Field label="WhatsApp" name="whatsapp" error={fe.whatsapp}>
+            <Input id="whatsapp" name="whatsapp" defaultValue={customer?.whatsapp ?? ""} placeholder="+212 6 00 00 00 00" />
+          </Field>
+          <Field label="Type de client" name="customer_type" error={fe.customer_type}>
+            <Select id="customer_type" name="customer_type" defaultValue={customer?.customer_type ?? "INDIVIDUAL"}><option value="INDIVIDUAL">Particulier</option><option value="COMPANY">Entreprise</option></Select>
+          </Field>
           <Field label="Date de naissance" name="date_of_birth" error={fe.date_of_birth}>
             <Input id="date_of_birth" name="date_of_birth" type="date" defaultValue={customer?.date_of_birth ?? ""} />
           </Field>
@@ -82,7 +88,7 @@ export function CustomerForm({ customer }: { customer?: Customer }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Pièce d'identité & permis</CardTitle>
+           <CardTitle className="text-base">Pièce d&apos;identité & permis</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Type de pièce" name="id_type" error={fe.id_type}>
@@ -96,12 +102,27 @@ export function CustomerForm({ customer }: { customer?: Customer }) {
           <Field label="N° de la pièce" name="id_number" error={fe.id_number}>
             <Input id="id_number" name="id_number" defaultValue={customer?.id_number ?? ""} placeholder="AB123456" />
           </Field>
+          <Field label="Expiration CIN / passeport" name="id_expiry" error={fe.id_expiry}><Input id="id_expiry" name="id_expiry" type="date" defaultValue={customer?.id_expiry ?? ""} /></Field>
           <Field label="N° permis de conduire" name="driver_license_number" error={fe.driver_license_number}>
             <Input id="driver_license_number" name="driver_license_number" defaultValue={customer?.driver_license_number ?? ""} />
           </Field>
           <Field label="Expiration du permis" name="driver_license_expiry" error={fe.driver_license_expiry}>
             <Input id="driver_license_expiry" name="driver_license_expiry" type="date" defaultValue={customer?.driver_license_expiry ?? ""} />
           </Field>
+          <Field label="Date d'émission du permis" name="driver_license_issued_at" error={fe.driver_license_issued_at}><Input id="driver_license_issued_at" name="driver_license_issued_at" type="date" defaultValue={customer?.driver_license_issued_at ?? ""} /></Field>
+          <Field label="N° permis international" name="international_permit_number" error={fe.international_permit_number}><Input id="international_permit_number" name="international_permit_number" defaultValue={customer?.international_permit_number ?? ""} /></Field>
+          <Field label="Expiration passeport" name="passport_expiry" error={fe.passport_expiry}><Input id="passport_expiry" name="passport_expiry" type="date" defaultValue={customer?.passport_expiry ?? ""} /></Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Entreprise (si applicable)</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Raison sociale" name="company_name" error={fe.company_name}><Input id="company_name" name="company_name" defaultValue={customer?.company_name ?? ""} /></Field>
+          <Field label="Contact" name="contact_person" error={fe.contact_person}><Input id="contact_person" name="contact_person" defaultValue={customer?.contact_person ?? ""} /></Field>
+          <Field label="ICE" name="ice" error={fe.ice}><Input id="ice" name="ice" defaultValue={customer?.ice ?? ""} /></Field>
+          <Field label="IF" name="if_number" error={fe.if_number}><Input id="if_number" name="if_number" defaultValue={customer?.if_number ?? ""} /></Field>
+          <Field label="RC" name="rc_number" error={fe.rc_number}><Input id="rc_number" name="rc_number" defaultValue={customer?.rc_number ?? ""} /></Field>
         </CardContent>
       </Card>
 

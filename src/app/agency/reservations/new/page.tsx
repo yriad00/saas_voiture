@@ -17,15 +17,21 @@ export default async function NewReservationPage({
   const { customer } = await searchParams;
 
   const supabase = await createClient();
-  const [customers, { data: vehicles }] = await Promise.all([
+  const [customers, { data: vehicles }, { data: branches }] = await Promise.all([
     listCustomerOptions(ctx.membership.agencyId),
     supabase
       .from("vehicles")
-      .select("id, brand, model, license_plate, daily_rate")
+      .select("id, brand, model, license_plate, daily_rate, category")
       .eq("agency_id", ctx.membership.agencyId)
       .is("deleted_at", null)
       .neq("status", "OUT_OF_SERVICE")
       .order("brand"),
+    supabase
+      .from("branches")
+      .select("id, name, code, city, address, phone, whatsapp, email, opening_hours, active, created_at, updated_at, agency_id")
+      .eq("agency_id", ctx.membership.agencyId)
+      .eq("active", true)
+      .order("name"),
   ]);
 
   return (
@@ -40,6 +46,7 @@ export default async function NewReservationPage({
       <ReservationForm
         customers={customers}
         vehicles={(vehicles ?? []).map((v) => ({ ...v, daily_rate: Number(v.daily_rate) }))}
+        branches={branches ?? []}
         defaultCustomerId={customer}
       />
     </div>

@@ -31,7 +31,7 @@ export default async function NoAccessPage() {
               <p className="text-sm text-muted-foreground">
                 Votre agence est actuellement{" "}
                 <strong>{STATUS_FR[ctx!.membership!.agencyStatus] ?? ctx!.membership!.agencyStatus.toLowerCase()}</strong>.
-                Contactez l'administrateur de la plateforme pour rétablir l'accès. Vos
+                 Contactez l&apos;administrateur de la plateforme pour rétablir l&apos;accès. Vos
                 données sont conservées et seront de nouveau disponibles après réactivation.
               </p>
             </>
@@ -39,8 +39,8 @@ export default async function NoAccessPage() {
             <>
               <h1 className="text-lg font-semibold">Accès refusé</h1>
               <p className="text-sm text-muted-foreground">
-                Votre compte n'est rattaché à aucun espace de travail, ou vous n'avez pas
-                la permission d'accéder à cette zone. Contactez votre administrateur.
+                 Votre compte n&apos;est rattaché à aucun espace de travail, ou vous n&apos;avez pas
+                 la permission d&apos;accéder à cette zone. Contactez votre administrateur.
               </p>
             </>
           )}

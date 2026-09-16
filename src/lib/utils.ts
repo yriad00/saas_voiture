@@ -10,8 +10,13 @@ export function formatCurrency(amount: number, currency = "MAD") {
   return new Intl.NumberFormat("fr-MA", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+}
+
+export function roundMoney(amount: number) {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
 /** Format an ISO date string for display. */

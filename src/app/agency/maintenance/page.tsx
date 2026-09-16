@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TableSearch } from "@/components/ui/table-search";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { MAINTENANCE_TYPE, MAINTENANCE_STATUS } from "@/lib/labels";
+import { MaintenanceStatusActions } from "./status-actions";
 
 export const metadata = { title: "Maintenance — FleetHub" };
 
@@ -45,7 +46,7 @@ export default async function MaintenancePage() {
           </div>
           <div>
             <p className="font-medium">Aucune intervention</p>
-            <p className="text-sm text-muted-foreground">Enregistrez la première intervention d'entretien.</p>
+             <p className="text-sm text-muted-foreground">Enregistrez la première intervention d&apos;entretien.</p>
           </div>
           <Button asChild>
             <Link href="/agency/maintenance/new"><Plus /> Nouvelle intervention</Link>
@@ -67,6 +68,7 @@ export default async function MaintenancePage() {
                   <TableHead>Garage</TableHead>
                   <TableHead>Coût</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -78,10 +80,11 @@ export default async function MaintenancePage() {
                     <TableCell className="text-sm text-muted-foreground">{m.garage_name ?? "—"}</TableCell>
                     <TableCell className="text-sm tabular-nums">{formatCurrency(Number(m.cost))}</TableCell>
                     <TableCell><StatusBadge meta={MAINTENANCE_STATUS[m.status]} /></TableCell>
+                    <TableCell><MaintenanceStatusActions id={m.id} status={m.status} /></TableCell>
                   </TableRow>
                 ))}
                 <tr data-empty-row hidden>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                     Aucune intervention ne correspond à votre recherche.
                   </TableCell>
                 </tr>

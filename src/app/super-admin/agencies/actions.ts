@@ -23,7 +23,9 @@ const createSchema = z.object({
   ownerEmail: z.string().email("Enter a valid owner email"),
   ownerPhone: z.string().optional(),
   planId: z.string().uuid("Select a plan"),
-  trial: z.coerce.boolean().default(true),
+  // HTML checkboxes are absent when unchecked; coercing the string "false"
+  // with z.coerce.boolean() would incorrectly produce true.
+  trial: z.preprocess((value) => value === "on" || value === "true", z.boolean()).default(false),
   endsAt: z.string().optional(),
 });
 

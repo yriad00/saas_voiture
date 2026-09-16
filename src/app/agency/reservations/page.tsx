@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Plus, CalendarCheck, Clock, Loader, CheckCircle2 } from "lucide-react";
+import { Plus, CalendarCheck } from "lucide-react";
 import { requireAgency } from "@/lib/auth/session";
-import { listReservations, getReservationStats } from "@/lib/services/reservations";
-import { StatCard, PageHeader } from "@/components/layout/stat-card";
+import { listReservations, computeReservationStats } from "@/lib/services/reservations";
+import { PageHeader } from "@/components/layout/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -15,10 +15,8 @@ export const metadata = { title: "Réservations — FleetHub" };
 
 export default async function ReservationsPage() {
   const ctx = await requireAgency();
-  const [reservations, stats] = await Promise.all([
-    listReservations(ctx.membership.agencyId),
-    getReservationStats(ctx.membership.agencyId),
-  ]);
+  const reservations = await listReservations(ctx.membership.agencyId);
+  const stats = computeReservationStats(reservations);
 
   return (
     <>
@@ -32,11 +30,11 @@ export default async function ReservationsPage() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total" value={stats.total} icon={CalendarCheck} />
-        <StatCard label="Confirmées" value={stats.byStatus.CONFIRMED} icon={Clock} accent="text-primary" />
-        <StatCard label="En cours" value={stats.byStatus.ONGOING} icon={Loader} accent="text-green-600" />
-        <StatCard label="Terminées" value={stats.byStatus.COMPLETED} icon={CheckCircle2} accent="text-muted-foreground" />
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-border/70 py-3 text-sm">
+        <span><strong>{stats.total}</strong> réservations</span>
+        <span className="text-primary"><strong>{stats.byStatus.CONFIRMED}</strong> confirmées</span>
+        <span className="text-emerald-600 dark:text-emerald-400"><strong>{stats.byStatus.ONGOING}</strong> en cours</span>
+        <span className="text-muted-foreground"><strong>{stats.byStatus.COMPLETED}</strong> terminées</span>
       </div>
 
       {reservations.length === 0 ? (

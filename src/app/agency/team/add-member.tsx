@@ -2,11 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { UserPlus, Loader2, Copy, CheckCircle2, X } from "lucide-react";
+import { UserPlus, Loader2, CheckCircle2, X } from "lucide-react";
 import { addMember, type MemberFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+
+type BranchOption = { id: string; name: string; code: string };
 
 function Field({ label, name, error, children }: { label: string; name: string; error?: string; children: React.ReactNode }) {
   return (
@@ -28,10 +30,9 @@ function Submit() {
   );
 }
 
-export function AddMember() {
+export function AddMember({ branches = [] }: { branches?: BranchOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, action] = useActionState<MemberFormState, FormData>(addMember, {});
-  const [copied, setCopied] = useState(false);
   const fe = state.fieldErrors ?? {};
 
   if (!open) {
@@ -43,25 +44,15 @@ export function AddMember() {
   }
 
   if (state.success) {
-    const copy = async () => {
-      await navigator.clipboard.writeText(`Email : ${state.success!.email}\nMot de passe : ${state.success!.tempPassword}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    };
     return (
       <Card className="mb-6">
         <CardContent className="space-y-4 p-6">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="size-6 text-green-600" />
-            <h3 className="font-semibold">Membre ajouté</h3>
+            <h3 className="font-semibold">Invitation envoyée</h3>
           </div>
-          <p className="text-sm text-muted-foreground">Communiquez ces identifiants au membre. Il devra changer son mot de passe.</p>
-          <div className="rounded-lg border border-border bg-muted/50 p-4 font-mono text-sm">
-            <div className="flex justify-between gap-4"><span className="text-muted-foreground">Email</span><span>{state.success.email}</span></div>
-            <div className="mt-2 flex justify-between gap-4"><span className="text-muted-foreground">Mot de passe</span><span className="font-semibold">{state.success.tempPassword}</span></div>
-          </div>
+          <p className="text-sm text-muted-foreground">Un lien d&apos;invitation a été envoyé à <strong>{state.success.email}</strong>. Le membre choisira son propre mot de passe à l&apos;activation.</p>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={copy} type="button"><Copy /> {copied ? "Copié" : "Copier"}</Button>
             <Button variant="ghost" onClick={() => setOpen(false)} type="button">Fermer</Button>
           </div>
         </CardContent>
@@ -94,6 +85,14 @@ export function AddMember() {
                 <option value="ACCOUNTANT">Comptable</option>
               </Select>
             </Field>
+            {branches.length > 0 && (
+              <Field label="Branche" name="branch_id" error={fe.branch_id}>
+                <Select id="branch_id" name="branch_id" defaultValue="">
+                  <option value="">Toutes les branches</option>
+                  {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name} ({branch.code})</option>)}
+                </Select>
+              </Field>
+            )}
           </div>
           {state.error && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-400">{state.error}</p>

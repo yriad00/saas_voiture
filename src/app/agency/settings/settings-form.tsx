@@ -11,6 +11,12 @@ import type { Tables } from "@/lib/database.types";
 
 type Agency = Tables<"agencies">;
 type Settings = Tables<"agency_settings">;
+type ChargeSettings = Settings & {
+  mileage_allowance?: number | null;
+  extra_mileage_rate?: number | null;
+  fuel_shortfall_rate?: number | null;
+  cleaning_fee?: number | null;
+};
 
 function Field({ label, name, error, children }: { label: string; name: string; error?: string; children: React.ReactNode }) {
   return (
@@ -41,8 +47,11 @@ export function SettingsForm({
   settings: Settings | null;
   readOnly: boolean;
 }) {
+  const chargeSettings = settings as ChargeSettings | null;
   const [state, action] = useActionState<SettingsFormState, FormData>(updateAgencySettings, {});
   const fe = state.fieldErrors ?? {};
+  const extra = (settings?.extra ?? {}) as Record<string, unknown>;
+  const extraValue = (key: string) => typeof extra[key] === "string" ? extra[key] as string : "";
 
   const disabled = readOnly;
 
@@ -73,6 +82,38 @@ export function SettingsForm({
               <Field label="Pays" name="country" error={fe.country}>
                 <Input id="country" name="country" defaultValue={agency.country ?? ""} disabled={disabled} />
               </Field>
+            </div>
+            <div className="border-t border-border pt-4">
+              <p className="mb-3 text-sm font-medium">Identifiants de facturation</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <Field label="Identifiant fiscal (IF)" name="tax_id" error={fe.tax_id}>
+                  <Input id="tax_id" name="tax_id" defaultValue={extraValue("tax_id")} disabled={disabled} />
+                </Field>
+                <Field label="Taxe professionnelle (TP)" name="professional_tax_id" error={fe.professional_tax_id}>
+                  <Input id="professional_tax_id" name="professional_tax_id" defaultValue={extraValue("professional_tax_id")} disabled={disabled} />
+                </Field>
+                <Field label="ICE" name="ice" error={fe.ice}>
+                  <Input id="ice" name="ice" defaultValue={extraValue("ice")} disabled={disabled} />
+                </Field>
+                <Field label="RC" name="rc_number" error={fe.rc_number}><Input id="rc_number" name="rc_number" defaultValue={extraValue("rc_number")} disabled={disabled} /></Field>
+              </div>
+              <div className="mt-4">
+                <Field label="Pied de facture" name="invoice_footer" error={fe.invoice_footer}>
+                  <Textarea id="invoice_footer" name="invoice_footer" defaultValue={extraValue("invoice_footer")} disabled={disabled} rows={2} />
+                </Field>
+              </div>
+            </div>
+            <div className="border-t border-border pt-4">
+              <p className="mb-3 text-sm font-medium">Conditions par défaut du contrat</p>
+              <Field label="Termes en français" name="contract_terms_fr" error={fe.contract_terms_fr}>
+                <Textarea id="contract_terms_fr" name="contract_terms_fr" defaultValue={extraValue("contract_terms_fr")} disabled={disabled} rows={5} placeholder="Ces termes seront proposés automatiquement à la création d’un contrat." />
+              </Field>
+              <div className="mt-4" dir="rtl">
+                <Field label="الشروط بالعربية" name="contract_terms_ar" error={fe.contract_terms_ar}>
+                  <Textarea id="contract_terms_ar" name="contract_terms_ar" dir="rtl" defaultValue={extraValue("contract_terms_ar")} disabled={disabled} rows={5} placeholder="الشروط الافتراضية للعقد" />
+                </Field>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Les textes restent modifiables sur chaque contrat et sont conservés dans son historique.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
               <div><span className="block text-xs">Slug</span>/{agency.slug}</div>
@@ -105,6 +146,27 @@ export function SettingsForm({
             <Field label="Politique de carburant" name="fuel_policy" error={fe.fuel_policy}>
               <Textarea id="fuel_policy" name="fuel_policy" defaultValue={settings?.fuel_policy ?? ""} disabled={disabled} rows={2} />
             </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Règle kilométrique" name="mileage_policy" error={fe.mileage_policy}>
+                <select id="mileage_policy" name="mileage_policy" defaultValue={settings?.mileage_policy ?? "UNLIMITED"} disabled={disabled} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="UNLIMITED">Kilométrage illimité</option>
+                  <option value="LIMITED">Kilométrage inclus limité</option>
+                  <option value="UNSPECIFIED">À définir au contrat</option>
+                </select>
+              </Field>
+              <Field label="Kilomètres inclus" name="mileage_allowance" error={fe.mileage_allowance}>
+                <Input id="mileage_allowance" name="mileage_allowance" type="number" min={0} step={1} defaultValue={chargeSettings?.mileage_allowance ?? ""} disabled={disabled} />
+              </Field>
+              <Field label="Km supplémentaire (MAD)" name="extra_mileage_rate" error={fe.extra_mileage_rate}>
+                <Input id="extra_mileage_rate" name="extra_mileage_rate" type="number" min={0} step="0.01" defaultValue={chargeSettings?.extra_mileage_rate ?? 2} disabled={disabled} />
+              </Field>
+              <Field label="Niveau carburant manquant (MAD)" name="fuel_shortfall_rate" error={fe.fuel_shortfall_rate}>
+                <Input id="fuel_shortfall_rate" name="fuel_shortfall_rate" type="number" min={0} step="0.01" defaultValue={chargeSettings?.fuel_shortfall_rate ?? 100} disabled={disabled} />
+              </Field>
+              <Field label="Nettoyage (MAD)" name="cleaning_fee" error={fe.cleaning_fee}>
+                <Input id="cleaning_fee" name="cleaning_fee" type="number" min={0} step="0.01" defaultValue={chargeSettings?.cleaning_fee ?? 200} disabled={disabled} />
+              </Field>
+            </div>
           </CardContent>
         </Card>
       </div>

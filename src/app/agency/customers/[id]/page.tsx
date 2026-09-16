@@ -11,6 +11,12 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { ID_DOCUMENT_TYPE, RESERVATION_STATUS } from "@/lib/labels";
+import { getOpenCustomerRiskFlag } from "@/lib/services/customer-risk";
+import { CustomerRiskControl } from "../risk-control";
+import { CustomerDocumentForm } from "../document-form";
+import { WhatsAppLink } from "@/components/whatsapp-link";
+
+type CustomerDocumentRow = { id: string; document_type: string; file_name: string; content_type: string; size_bytes: number; storage_path: string; expires_at?: string | null; created_at: string };
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireAgency();
@@ -27,6 +33,36 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     .eq("customer_id", id)
     .order("created_at", { ascending: false })
     .limit(10);
+  const riskFlag = await getOpenCustomerRiskFlag(supabase, ctx.membership.agencyId, id);
+  const documentsWithExpiry = await supabase
+    .from("customer_documents")
+    .select("id, document_type, file_name, content_type, size_bytes, storage_path, expires_at, created_at")
+    .eq("agency_id", ctx.membership.agencyId)
+    .eq("customer_id", id)
+    .order("created_at", { ascending: false });
+  // Keep the page readable while an older deployment is waiting for 0085.
+  // The normal path always uses the expiry-aware projection.
+  let documents: CustomerDocumentRow[] = (documentsWithExpiry.data ?? []) as CustomerDocumentRow[];
+  if (documentsWithExpiry.error?.code === "42703") {
+    const fallbackDocuments = await supabase
+      .from("customer_documents")
+      .select("id, document_type, file_name, content_type, size_bytes, storage_path, created_at")
+      .eq("agency_id", ctx.membership.agencyId)
+      .eq("customer_id", id)
+      .order("created_at", { ascending: false });
+    documents = (fallbackDocuments.data ?? []).map((document) => ({ ...document, expires_at: null }));
+  }
+  const { data: customerPayments } = await supabase
+    .from("payments")
+    .select("id, amount, type, status, paid_at, method, contract_id")
+    .eq("agency_id", ctx.membership.agencyId)
+    .eq("customer_id", id)
+    .order("paid_at", { ascending: false })
+    .limit(30);
+  const documentLinks = await Promise.all((documents ?? []).map(async (document) => {
+    const { data } = await supabase.storage.from("customer-documents").createSignedUrl(document.storage_path, 300);
+    return { ...document, signedUrl: data?.signedUrl ?? null };
+  }));
 
   return (
     <div className="space-y-6">
@@ -46,6 +82,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <p className="text-sm text-muted-foreground">
               {ID_DOCUMENT_TYPE[customer.id_type]}{customer.id_number ? ` · ${customer.id_number}` : ""}
             </p>
+            <div className="mt-2"><WhatsAppLink phone={customer.whatsapp ?? customer.phone} message={`Bonjour ${customer.first_name}, votre agence de location vous contacte.`} /></div>
           </div>
         </div>
         {canWrite && (
@@ -66,6 +103,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           <CardHeader><CardTitle className="text-base">Coordonnées</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Info icon={Phone} label="Téléphone" value={customer.phone} />
+            <Info icon={Phone} label="WhatsApp" value={customer.whatsapp} />
             <Info icon={Mail} label="Email" value={customer.email} />
             <Info icon={MapPin} label="Ville" value={customer.city} />
             <Info label="Nationalité" value={customer.nationality} />
@@ -75,15 +113,46 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base">Pièce d'identité & permis</CardTitle></CardHeader>
+           <CardHeader><CardTitle className="text-base">Pièce d&apos;identité & permis</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Info icon={CreditCard} label="Type de pièce" value={ID_DOCUMENT_TYPE[customer.id_type]} />
             <Info label="N° de la pièce" value={customer.id_number} />
             <Info label="N° permis" value={customer.driver_license_number} />
             <Info icon={Calendar} label="Expiration permis" value={formatDate(customer.driver_license_expiry)} />
+            <Info icon={Calendar} label="Expiration CIN / passeport" value={formatDate(customer.id_expiry ?? customer.passport_expiry)} />
+            <Info label="Permis international" value={customer.international_permit_number} />
           </CardContent>
         </Card>
       </div>
+
+      <CustomerRiskControl customerId={customer.id} flag={riskFlag} />
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Documents client</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <CustomerDocumentForm customerId={customer.id} />
+          {documentLinks.length > 0 && (
+            <div className="divide-y rounded-lg border">
+              {documentLinks.map((document) => (
+                <div key={document.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <div><p className="font-medium">{document.file_name}</p><p className="text-xs text-muted-foreground">{document.document_type} · {Math.round(Number(document.size_bytes) / 1024)} Ko{document.expires_at ? ` · expire le ${formatDate(document.expires_at)}` : ""}</p></div>
+                  {document.signedUrl ? <a className="text-primary hover:underline" href={document.signedUrl} target="_blank" rel="noreferrer">Ouvrir</a> : <span className="text-xs text-muted-foreground">Lien indisponible</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {documentLinks.length === 0 && <p className="text-sm text-muted-foreground">Aucun document privé ajouté.</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Historique financier</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {(() => { const completed = (customerPayments ?? []).filter((p) => p.status === "COMPLETED"); const paid = completed.filter((p) => !["REFUND", "DEPOSIT_REFUND"].includes(p.type)).reduce((sum, p) => sum + Number(p.amount), 0); const refunded = completed.filter((p) => ["REFUND", "DEPOSIT_REFUND"].includes(p.type)).reduce((sum, p) => sum + Number(p.amount), 0); return <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Info label="Paiements" value={formatCurrency(paid)} /><Info label="Remboursements" value={formatCurrency(refunded)} /><Info label="Opérations" value={String(customerPayments?.length ?? 0)} /><Info label="Net" value={formatCurrency(paid - refunded)} /></div>; })()}
+          {(customerPayments ?? []).length > 0 && <div className="divide-y rounded-lg border">{(customerPayments ?? []).slice(0, 8).map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span>{payment.type} · {payment.method} · {formatDate(payment.paid_at)}</span><strong>{formatCurrency(Number(payment.amount))}</strong></div>)}</div>}
+          {(customerPayments ?? []).length === 0 && <p className="text-sm text-muted-foreground">Aucune opération financière.</p>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Historique des réservations</CardTitle></CardHeader>

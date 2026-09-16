@@ -18,7 +18,7 @@ export default async function NewContractPage({
   const { reservation } = await searchParams;
 
   const supabase = await createClient();
-  const [customers, { data: vehicles }] = await Promise.all([
+  const [customers, { data: vehicles }, { data: settings }] = await Promise.all([
     listCustomerOptions(ctx.membership.agencyId),
     supabase
       .from("vehicles")
@@ -26,20 +26,23 @@ export default async function NewContractPage({
       .eq("agency_id", ctx.membership.agencyId)
       .is("deleted_at", null)
       .order("brand"),
+    supabase.from("agency_settings").select("extra").eq("agency_id", ctx.membership.agencyId).maybeSingle(),
   ]);
+  const settingsExtra = (settings?.extra ?? {}) as Record<string, unknown>;
 
   let prefill: ContractPrefill | undefined;
   if (reservation) {
-    const r = await getReservation(reservation);
-    if (r && r.agency_id === ctx.membership.agencyId) {
+    const r = await getReservation(reservation, ctx.membership.agencyId);
+    if (r) {
       prefill = {
         reservation_id: r.id,
         customer_id: r.customer.id,
-        vehicle_id: r.vehicle.id,
+        vehicle_id: r.vehicle?.id,
         start_date: r.start_date,
         end_date: r.end_date,
         daily_rate: Number(r.daily_rate),
-        total_amount: Number(r.total_amount),
+        total_amount: Math.max(0, Number(r.total_amount) - Number((r as { one_way_fee?: number }).one_way_fee ?? 0)),
+        one_way_fee: Number((r as { one_way_fee?: number }).one_way_fee ?? 0),
       };
     }
   }
@@ -55,7 +58,13 @@ export default async function NewContractPage({
           {prefill ? "Pré-rempli depuis la réservation." : "Renseignez les informations du contrat de location."}
         </p>
       </div>
-      <ContractForm customers={customers} vehicles={vehicles ?? []} prefill={prefill} />
+      <ContractForm
+        customers={customers}
+        vehicles={vehicles ?? []}
+        prefill={prefill}
+        defaultTerms={typeof settingsExtra.contract_terms_fr === "string" ? settingsExtra.contract_terms_fr : undefined}
+        defaultTermsAr={typeof settingsExtra.contract_terms_ar === "string" ? settingsExtra.contract_terms_ar : undefined}
+      />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function LoginPage() {
           </CardContent>
         </Card>
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          L'accès est fourni par votre administrateur. Les agences ne peuvent pas s'inscrire seules.
+           L&apos;accès est fourni par votre administrateur. Les agences ne peuvent pas s&apos;inscrire seules.
         </p>
       </div>
     </div>

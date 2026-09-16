@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, Ban } from "lucide-react";
+import { Loader2, CheckCircle2, Ban, Play } from "lucide-react";
 import { closeContract, setContractStatus } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,14 @@ export function ContractActions({
     });
   };
 
+  const activate = () => {
+    startTransition(async () => {
+      const res = await setContractStatus(contractId, "ACTIVE");
+      if (res?.error) return window.alert(res.error);
+      router.refresh();
+    });
+  };
+
   const submitClose = (formData: FormData) => {
     startTransition(async () => {
       const res = await closeContract(contractId, formData);
@@ -39,6 +47,20 @@ export function ContractActions({
   };
 
   if (status === "CLOSED" || status === "CANCELLED") return null;
+
+  if (status === "DRAFT") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button variant="default" size="sm" disabled={pending} onClick={activate}>
+          {pending && <Loader2 className="animate-spin" />}
+          <Play /> Démarrer la location
+        </Button>
+        <Button variant="outline" size="sm" disabled={pending} onClick={cancel}>
+          <Ban /> Annuler
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <>

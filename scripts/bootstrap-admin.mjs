@@ -5,8 +5,9 @@
  *
  *   node --env-file=.env.local scripts/bootstrap-admin.mjs [email] [password] ["Full Name"]
  *
- * Defaults: email = walidtajani084@gmail.com, password = FleetHub!2026, name = "Platform Admin".
- * Safe to re-run: if the user exists it just (re)asserts the super-admin flag.
+ * Email and password are required; this prevents a shared credential from
+ * accidentally reaching a deployed environment. Safe to re-run: if the user
+ * exists it just reasserts the super-admin flag.
  */
 import { createClient } from "@supabase/supabase-js";
 
@@ -19,9 +20,15 @@ if (!url || !key || key === "PASTE_SERVICE_ROLE_KEY_HERE") {
   process.exit(1);
 }
 
-const email = process.argv[2] || "walidtajani084@gmail.com";
-const password = process.argv[3] || "FleetHub!2026";
+const email = process.argv[2];
+const password = process.argv[3];
 const fullName = process.argv[4] || "Platform Admin";
+
+if (!email || !password || password.length < 12) {
+  console.error("\n❌ Usage: npm run bootstrap:admin -- email password [\"Full Name\"]");
+  console.error("   Password must be at least 12 characters and must not be a shared default.\n");
+  process.exit(1);
+}
 
 const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -68,8 +75,7 @@ async function main() {
 
   console.log("\n✅ Super-admin ready.");
   console.log("   Email:    " + email);
-  console.log("   Password: " + password);
-  console.log("\n   Sign in at http://localhost:3000/login and change the password.\n");
+  console.log("\n   Sign in at http://localhost:3000/login and change the password after first use.\n");
 }
 
 main().catch((e) => {

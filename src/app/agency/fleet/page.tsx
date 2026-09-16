@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Plus, CarFront, Gauge, Wrench, Ban } from "lucide-react";
+import { Plus, CarFront, Satellite } from "lucide-react";
 import { requireAgency } from "@/lib/auth/session";
-import { listVehicles, getFleetStats } from "@/lib/services/vehicles";
-import { StatCard, PageHeader } from "@/components/layout/stat-card";
+import { listVehicles, computeFleetStats } from "@/lib/services/vehicles";
+import { PageHeader } from "@/components/layout/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import { VEHICLE_STATUS, VEHICLE_CATEGORY } from "@/lib/labels";
+import { ImportPanel } from "../import/import-panel";
+import { ExportButtons } from "../export-buttons";
 
 export const metadata = { title: "Flotte — FleetHub" };
 
 export default async function FleetPage() {
   const ctx = await requireAgency();
-  const [vehicles, stats] = await Promise.all([
-    listVehicles(ctx.membership.agencyId),
-    getFleetStats(ctx.membership.agencyId),
-  ]);
+  const vehicles = await listVehicles(ctx.membership.agencyId);
+  const stats = computeFleetStats(vehicles);
 
   return (
     <>
@@ -33,20 +33,42 @@ export default async function FleetPage() {
         title="Flotte"
         description="Gérez vos véhicules — ajout, modification et suivi du statut."
         action={
-          <Button asChild>
-            <Link href="/agency/fleet/new">
-              <Plus /> Ajouter un véhicule
-            </Link>
-          </Button>
+          <>
+            <ExportButtons
+              filename="flotte-fleethub"
+              columns={[
+                { key: "brand", label: "Marque" },
+                { key: "model", label: "Modèle" },
+                { key: "year", label: "Année" },
+                { key: "license_plate", label: "Immatriculation" },
+                { key: "category", label: "Catégorie" },
+                { key: "fuel_type", label: "Carburant" },
+                { key: "transmission", label: "Boîte" },
+                { key: "daily_rate", label: "Tarif journalier" },
+                { key: "mileage", label: "Kilométrage" },
+                { key: "status", label: "Statut" },
+                { key: "gps_provider", label: "Fournisseur GPS" },
+                { key: "gps_device_id", label: "ID boîtier GPS" },
+              ]}
+              rows={vehicles as unknown as Array<Record<string, unknown>>}
+            />
+            <Button asChild>
+              <Link href="/agency/fleet/new">
+                <Plus /> Ajouter un véhicule
+              </Link>
+            </Button>
+          </>
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Total" value={stats.total} icon={CarFront} />
-        <StatCard label="Disponibles" value={stats.byStatus.AVAILABLE} icon={CarFront} accent="text-green-600" />
-        <StatCard label="Loués" value={stats.byStatus.RENTED} icon={Gauge} accent="text-primary" />
-        <StatCard label="En maintenance" value={stats.byStatus.MAINTENANCE} icon={Wrench} accent="text-amber-600" />
-        <StatCard label="Hors service" value={stats.byStatus.OUT_OF_SERVICE} icon={Ban} accent="text-red-600" />
+      <ImportPanel kind="vehicles" />
+
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-border/70 py-3 text-sm">
+        <span><strong>{stats.total}</strong> véhicules</span>
+        <span className="text-emerald-600 dark:text-emerald-400"><strong>{stats.byStatus.AVAILABLE}</strong> disponibles</span>
+        <span className="text-primary"><strong>{stats.byStatus.RENTED}</strong> loués</span>
+        <span className="text-amber-600 dark:text-amber-400"><strong>{stats.byStatus.MAINTENANCE}</strong> maintenance</span>
+        <span className="text-muted-foreground"><strong>{stats.byStatus.OUT_OF_SERVICE}</strong> hors service</span>
       </div>
 
       {vehicles.length === 0 ? (
@@ -82,6 +104,7 @@ export default async function FleetPage() {
                   <TableHead>Tarif / jour</TableHead>
                   <TableHead>Kilométrage</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>GPS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -112,10 +135,15 @@ export default async function FleetPage() {
                     <TableCell>
                       <StatusBadge meta={VEHICLE_STATUS[v.status]} />
                     </TableCell>
+                    <TableCell>
+                      {v.gps_enabled ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"><Satellite className="size-3.5" /> Activé</span>
+                      ) : <span className="text-xs text-muted-foreground">Non configuré</span>}
+                    </TableCell>
                   </TableRow>
                 ))}
                 <tr data-empty-row hidden>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                     Aucun véhicule ne correspond à votre recherche.
                   </TableCell>
                 </tr>

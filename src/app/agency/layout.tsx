@@ -1,20 +1,60 @@
 import { redirect } from "next/navigation";
 import { Car } from "lucide-react";
 import { requireAgency } from "@/lib/auth/session";
+import { can } from "@/lib/auth/session";
 import { Sidebar, type NavItem } from "@/components/layout/sidebar";
 import { UserMenu } from "@/components/layout/user-menu";
 
-const NAV: NavItem[] = [
-  { href: "/agency", label: "Tableau de bord", icon: "dashboard" },
-  { href: "/agency/fleet", label: "Flotte", icon: "fleet" },
-  { href: "/agency/customers", label: "Clients", icon: "customers" },
-  { href: "/agency/reservations", label: "Réservations", icon: "reservations" },
-  { href: "/agency/contracts", label: "Contrats", icon: "contracts" },
-  { href: "/agency/payments", label: "Paiements", icon: "payments" },
-  { href: "/agency/maintenance", label: "Maintenance", icon: "maintenance" },
-  { href: "/agency/team", label: "Équipe", icon: "team" },
-  { href: "/agency/settings", label: "Paramètres", icon: "settings" },
+const DAILY_NAV: NavItem[] = [
+  { href: "/agency/today", label: "Aujourd’hui", icon: "calendar", section: "Quotidien" },
+  { href: "/agency/reservations", label: "Réservations", icon: "reservations", section: "Quotidien" },
+  { href: "/agency/contracts", label: "Locations / contrats", icon: "contracts", section: "Quotidien" },
+  { href: "/agency/fleet", label: "Véhicules", icon: "fleet", section: "Quotidien" },
+  { href: "/agency/customers", label: "Clients", icon: "customers", section: "Quotidien" },
 ];
+
+const OWNER_NAV: NavItem[] = [
+  { href: "/agency", label: "Tableau de bord", icon: "dashboard", section: "Pilotage" },
+  ...DAILY_NAV,
+  { href: "/agency/calendar", label: "Calendrier", icon: "calendar", section: "Quotidien" },
+  { href: "/agency/payments", label: "Paiements", icon: "payments", section: "Gestion" },
+  { href: "/agency/caisse", label: "Caisse", icon: "payments", section: "Gestion" },
+  { href: "/agency/maintenance", label: "Maintenance", icon: "maintenance", section: "Gestion" },
+  { href: "/agency/expenses", label: "Dépenses", icon: "expenses", section: "Gestion" },
+  { href: "/agency/operations", label: "Plus d’opérations", icon: "maintenance", section: "Gestion" },
+  { href: "/agency/reports", label: "Rapports", icon: "analytics", section: "Gestion" },
+  { href: "/agency/team", label: "Équipe", icon: "team", section: "Gestion" },
+  { href: "/agency/settings", label: "Paramètres", icon: "settings", section: "Gestion" },
+];
+
+const AGENT_PLUS: NavItem[] = [
+  { href: "/agency/maintenance", label: "Maintenance", icon: "maintenance", section: "Plus" },
+  { href: "/agency/payments", label: "Paiements", icon: "payments", section: "Plus" },
+  { href: "/agency/operations", label: "Plus d’opérations", icon: "maintenance", section: "Plus" },
+];
+
+function navigationFor(ctx: Awaited<ReturnType<typeof requireAgency>>): NavItem[] {
+  const role = ctx.membership.roleKey;
+  if (role === "AGENT") {
+    return [...DAILY_NAV, ...AGENT_PLUS.filter((item) =>
+      item.href === "/agency/maintenance"
+        ? can(ctx, "maintenance.view") || can(ctx, "maintenance:read")
+        : item.href === "/agency/payments"
+          ? can(ctx, "payments.view") || can(ctx, "payments:read")
+          : can(ctx, "contracts.update"),
+    )];
+  }
+  if (role === "ACCOUNTANT") {
+    return [
+      ...DAILY_NAV,
+      { href: "/agency/payments", label: "Paiements", icon: "payments", section: "Plus" },
+      { href: "/agency/caisse", label: "Caisse", icon: "payments", section: "Plus" },
+      { href: "/agency/expenses", label: "Dépenses", icon: "expenses", section: "Plus" },
+      { href: "/agency/reports", label: "Rapports", icon: "analytics", section: "Plus" },
+    ];
+  }
+  return OWNER_NAV;
+}
 
 export default async function AgencyLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireAgency();
@@ -38,7 +78,7 @@ export default async function AgencyLayout({ children }: { children: React.React
             </div>
           </div>
         }
-        items={NAV}
+        items={navigationFor(ctx)}
         footer={
           <UserMenu
             name={ctx.profile.full_name ?? ctx.profile.email ?? "User"}
@@ -46,8 +86,9 @@ export default async function AgencyLayout({ children }: { children: React.React
           />
         }
       />
-      <main className="flex-1 overflow-x-hidden bg-background">
-        <div className="fh-animate-in mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative flex-1 overflow-x-hidden bg-background">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-primary/[0.035] to-transparent" />
+        <div className="fh-animate-in relative mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
           {children}
         </div>
       </main>

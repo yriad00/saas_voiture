@@ -1,0 +1,5 @@
+"use client";
+import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
+import { updateMissionStatus, type MissionStatusState } from "@/app/agency/operations/actions";
+export function MissionStatusForm({ missionId, status }: { missionId: string; status: string }) { const [state, action] = useActionState<MissionStatusState, FormData>(updateMissionStatus, {}); return <form action={action} className="flex flex-wrap items-center gap-2"><input type="hidden" name="mission_id" value={missionId}/><select name="status" defaultValue={status} className="h-9 rounded-md border bg-background px-2 text-sm"><option value="ACCEPTED">Acceptée</option><option value="PREPARING">En préparation</option><option value="READY">Prête</option><option value="ON_THE_WAY">En route</option><option value="ARRIVED">Arrivé</option><option value="COMPLETED">Terminée</option><option value="FAILED">Échec</option></select><Button size="sm">Mettre à jour</Button>{state.error && <span className="text-xs text-destructive">{state.error}</span>}</form>; }
