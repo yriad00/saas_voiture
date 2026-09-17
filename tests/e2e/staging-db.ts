@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { assertStagingTarget } from "../../scripts/staging-target.mjs";
+import stagingTarget from "../../scripts/staging-target.cjs";
+
+const { assertStagingTarget } = stagingTarget;
 
 function requireStagingUrl() {
   const raw = process.env.FLEETHUB_TEST_SUPABASE_URL;

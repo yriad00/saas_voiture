@@ -28,7 +28,11 @@ async function open(page: Page, route: string) {
 }
 
 async function expectText(page: Page, text: string | RegExp) {
-  await expect(page.getByText(text).first()).toBeVisible();
+  // Hosted Vercel can queue a cold serverless invocation for ~20s even when
+  // the action itself completes in ~3s (verified in Vercel logs). Keep the
+  // assertion strict while allowing the measured transport window; the
+  // submit button's pending state remains visible immediately in the UI.
+  await expect(page.getByText(text).first()).toBeVisible({ timeout: 30_000 });
 }
 
 async function openSection(page: Page, label: string) {
