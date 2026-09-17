@@ -43,6 +43,10 @@ async function uploadPhotos(page: Page, title: string, contractId: string, inspe
     const form = inputs.nth(index).locator("xpath=..");
     await inputs.nth(index).setInputFiles({ name: `${inspectionType.toLowerCase()}-one-way-${index}.png`, mimeType: "image/png", buffer: onePixelPng });
     await form.getByRole("button", { name: "Ajouter", exact: true }).click();
+    // Do not start the next upload while the current Server Action is still
+    // pending. The visible confirmation is the browser-level acknowledgement;
+    // the database assertion below proves persistence separately.
+    await expect(form.getByText("Photo enregistrée.", { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect.poll(async () => {
       const photos = await rows("contract_inspection_photos", { contract_id: contractId, inspection_type: inspectionType });
       return photos.filter((photo) => photo.photo_type === types[index]).length;
@@ -54,7 +58,7 @@ async function uploadPhotos(page: Page, title: string, contractId: string, inspe
 }
 
 test("one-way rental completes from Casablanca pickup to Marrakech return in the browser", async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const { fixture } = context();
   // Keep this scenario isolated from the release matrix's reservation and
   // damage vehicles. The dedicated synthetic vehicle is free in this period.

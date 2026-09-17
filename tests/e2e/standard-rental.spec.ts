@@ -38,6 +38,7 @@ async function uploadInspectionPhotos(page: Page, title: string, contractId: str
     const form = inputs.nth(index).locator("xpath=..");
     await inputs.nth(index).setInputFiles({ name: `${inspectionType.toLowerCase()}-${index}.png`, mimeType: "image/png", buffer: onePixelPng });
     await form.getByRole("button", { name: "Ajouter", exact: true }).click();
+    await expect(form.getByText("Photo enregistrée.", { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect.poll(async () => {
       const photos = await rows("contract_inspection_photos", { contract_id: contractId, inspection_type: inspectionType });
       return photos.filter((photo) => photo.photo_type === expectedTypes[index]).length;
@@ -53,7 +54,7 @@ async function open(page: Page, route: string) {
 }
 
 test("standard rental is executed through the browser and reconciles in staging", async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const { fixture } = context();
   const vehicleId = fixture.vehicles.free;
   if (!vehicleId) throw new Error("Synthetic free vehicle fixture is required");
