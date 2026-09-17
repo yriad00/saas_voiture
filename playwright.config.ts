@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const localRun = process.env.FLEETHUB_LOCAL_E2E === "1";
+const hostedRun = !localRun;
 const target = localRun ? (process.env.FLEETHUB_LOCAL_URL ?? "http://127.0.0.1:3200") : process.env.FLEETHUB_HOSTED_URL;
 if (!target) throw new Error("Set FLEETHUB_HOSTED_URL to the hosted staging URL before running release E2E.");
 const parsedUrl = new URL(target);
@@ -12,8 +13,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
+  // Hosted Vercel server actions have a measured queue/transport window of
+  // roughly 20–45 seconds on a cold invocation. Keep local feedback strict,
+  // while allowing hosted assertions to observe the server-confirmed result.
+  timeout: hostedRun ? 180_000 : 60_000,
+  expect: { timeout: hostedRun ? 60_000 : 10_000 },
   reporter: [["list"], ["json", { outputFile: "test-results/release-e2e.json" }]],
   globalSetup: "./tests/e2e/global-setup.mjs",
   globalTeardown: "./tests/e2e/global-teardown.mjs",
