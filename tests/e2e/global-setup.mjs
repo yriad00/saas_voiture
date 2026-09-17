@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { assertStagingTarget } from "../../scripts/staging-target.mjs";
 
 const root = process.cwd();
 const resultsDir = path.join(root, "test-results");
@@ -10,8 +11,6 @@ const e2eDir = path.join(resultsDir, ".fleethub-e2e");
 const contextPath = path.join(e2eDir, "context.json");
 const authPath = path.join(e2eDir, "owner-storage.json");
 const agentAuthPath = path.join(e2eDir, "agent-storage.json");
-const productionRef = "wewajfotwphufsthfgul";
-const stagingRef = "nyurwczpxpcpwqamfoek";
 
 function readEnvFile(filePath) {
   const values = {};
@@ -69,9 +68,7 @@ export default async function globalSetup() {
     FLEETHUB_E2E_IP: e2eIp,
   };
   const supabaseUrl = testEnv.FLEETHUB_TEST_SUPABASE_URL;
-  if (!supabaseUrl || !supabaseUrl.includes(stagingRef) || supabaseUrl.includes(productionRef)) {
-    throw new Error("Release E2E requires FLEETHUB_TEST_SUPABASE_URL for fleethub-staging; production is blocked.");
-  }
+  assertStagingTarget(supabaseUrl, "FLEETHUB_TEST_SUPABASE_URL");
   if (!testEnv.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY) throw new Error("FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY is required for isolated staging fixtures.");
 
   fs.mkdirSync(e2eDir, { recursive: true });

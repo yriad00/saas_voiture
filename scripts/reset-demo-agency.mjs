@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
+import { assertStagingTarget } from "./staging-target.mjs";
 
 const url = process.env.FLEETHUB_TEST_SUPABASE_URL;
 const key = process.env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) throw new Error("Staging env required (FLEETHUB_TEST_SUPABASE_URL / FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY)");
-if (!url.includes("nyurwczpxpcpwqamfoek") || url.includes("wewajfotwphufsthfgul")) throw new Error("Refusing to reset: target is not fleethub-staging");
+assertStagingTarget(url, "FLEETHUB_TEST_SUPABASE_URL");
 
 const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 const e2eRunId = process.env.FLEETHUB_E2E_RUN_ID?.trim().replace(/[^A-Za-z0-9_-]/g, "");

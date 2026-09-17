@@ -1,10 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { assertStagingTarget } from "./staging-target.mjs";
 
 const root = process.cwd();
-const productionRef = "wewajfotwphufsthfgul";
-const stagingRef = "nyurwczpxpcpwqamfoek";
 
 function readEnvFile(filePath) {
   const values = {};
@@ -22,9 +21,7 @@ const fileEnv = readEnvFile(path.join(root, ".env.test.local"));
 const supabaseUrl = process.env.FLEETHUB_TEST_SUPABASE_URL ?? fileEnv.FLEETHUB_TEST_SUPABASE_URL;
 const anonKey = process.env.FLEETHUB_TEST_SUPABASE_ANON_KEY ?? fileEnv.FLEETHUB_TEST_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !anonKey) throw new Error("Staging E2E requires .env.test.local Supabase URL and anon key.");
-if (!supabaseUrl.includes(stagingRef) || supabaseUrl.includes(productionRef)) {
-  throw new Error("Refusing to start the local E2E server: Supabase target is not fleethub-staging.");
-}
+assertStagingTarget(supabaseUrl, "FLEETHUB_TEST_SUPABASE_URL");
 
 const port = String(process.env.FLEETHUB_LOCAL_PORT ?? process.env.PORT ?? "3200");
 const stagingEnv = {

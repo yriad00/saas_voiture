@@ -2,12 +2,11 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../../scripts/staging-target.mjs";
 
 const root = process.cwd();
 const contextPath = path.join(root, "test-results", ".fleethub-e2e", "context.json");
 const resultsDir = path.join(root, "test-results", ".fleethub-e2e");
-const productionRef = "wewajfotwphufsthfgul";
-const stagingRef = "nyurwczpxpcpwqamfoek";
 
 function readEnvFile(filePath) {
   const values = {};
@@ -71,7 +70,7 @@ async function verifyFixtureCleanup(testEnv, context) {
 export default async function globalTeardown() {
   const testEnv = readEnvFile(path.join(root, ".env.test.local"));
   const url = testEnv.FLEETHUB_TEST_SUPABASE_URL || "";
-  if (!url.includes(stagingRef) || url.includes(productionRef)) throw new Error("Refusing E2E cleanup: target is not fleethub-staging.");
+  assertStagingTarget(url, "FLEETHUB_TEST_SUPABASE_URL");
   if (fs.existsSync(contextPath)) {
     const context = JSON.parse(fs.readFileSync(contextPath, "utf8"));
     if (context.e2eRunId) testEnv.FLEETHUB_E2E_RUN_ID = context.e2eRunId;

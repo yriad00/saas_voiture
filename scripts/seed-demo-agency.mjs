@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import { assertStagingTarget } from "./staging-target.mjs";
 
 const url = process.env.FLEETHUB_TEST_SUPABASE_URL;
 const key = process.env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) throw new Error("Staging env required (FLEETHUB_TEST_SUPABASE_URL / FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY)");
-if (!url.includes("nyurwczpxpcpwqamfoek") || url.includes("wewajfotwphufsthfgul")) throw new Error("Refusing to seed: target is not fleethub-staging");
+assertStagingTarget(url, "FLEETHUB_TEST_SUPABASE_URL");
 const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 const password = () => `QA!${crypto.randomBytes(16).toString("base64url")}`;
 const today = new Date();
@@ -14,16 +15,6 @@ const e2eRunId = process.env.FLEETHUB_E2E_RUN_ID?.trim().replace(/[^A-Za-z0-9_-]
 const isolatedE2E = Boolean(e2eRunId);
 const DEMO_SLUG = isolatedE2E ? `fleethub-e2e-${e2eRunId.toLowerCase()}` : "fleethub-demo-agency";
 const DEMO_NAME = isolatedE2E ? `TEST_E2E_${e2eRunId} FleetHub Demo Agency` : "FleetHub Demo Agency";
-
-// Hosted E2E runs use fresh synthetic Auth users, but Vercel's edge may
-// replace a test x-forwarded-for header with the runner's real IP. Clear only
-// the staging login IP buckets before an isolated run so repeated synthetic
-// suites do not trip the real brute-force limiter. This script is guarded to
-// fleethub-staging above and is never used by the application or production.
-if (isolatedE2E) {
-  const { error } = await admin.from("login_rate_limit_buckets").delete().like("bucket_key", "ip:%");
-  if (error) throw new Error(`staging login bucket reset: ${error.message}`);
-}
 
 async function insert(table, payload, select = "id") {
   const { data, error } = await admin.from(table).insert(payload).select(select).single();

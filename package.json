@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:security": "node --test --test-concurrency=1 tests/security.test.mjs",
+    "test:staging-safety": "node --test tests/staging-target.test.mjs",
     "test:financial": "node --test tests/financials.test.mjs tests/financial-documents.test.mjs tests/return-workflow.test.mjs",
     "test:morocco": "node --test tests/morocco-workflows.test.mjs tests/early-return-and-periods.test.mjs tests/deposit-cheque.test.mjs",
     "test:e2e:install": "playwright install chromium",
