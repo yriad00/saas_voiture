@@ -87,7 +87,10 @@ export default async function globalSetup() {
     await page.getByLabel("Email", { exact: true }).fill(fixture.owner.email);
     await page.getByLabel("Mot de passe", { exact: true }).fill(fixture.owner.password);
     await page.getByRole("button", { name: "Se connecter", exact: true }).click();
-    await page.waitForURL(/\/agency(?:\/|$)/, { timeout: 30_000 });
+    // Hosted Vercel can queue a cold serverless auth action before the
+    // redirect is observable by the browser. Keep the assertion strict while
+    // allowing the measured staging transport window.
+    await page.waitForURL(/\/agency(?:\/|$)/, { timeout: 60_000 });
     await context.storageState({ path: authPath });
     // Authenticate the branch-limited employee once during setup. The tests
     // reuse this browser state so repeated suites do not trip the real Auth
@@ -98,7 +101,7 @@ export default async function globalSetup() {
     await agentPage.getByLabel("Email", { exact: true }).fill(fixture.agent.email);
     await agentPage.getByLabel("Mot de passe", { exact: true }).fill(fixture.agent.password);
     await agentPage.getByRole("button", { name: "Se connecter", exact: true }).click();
-    await agentPage.waitForURL(/\/agency(?:\/|$)/, { timeout: 30_000 });
+    await agentPage.waitForURL(/\/agency(?:\/|$)/, { timeout: 60_000 });
     await agentContext.storageState({ path: agentAuthPath });
     await agentContext.close();
     fs.writeFileSync(contextPath, JSON.stringify({ hostedUrl, fixture, e2eRunId: testEnv.FLEETHUB_E2E_RUN_ID, e2eIp }, null, 2), { encoding: "utf8", mode: 0o600 });
