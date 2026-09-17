@@ -15,6 +15,16 @@ const isolatedE2E = Boolean(e2eRunId);
 const DEMO_SLUG = isolatedE2E ? `fleethub-e2e-${e2eRunId.toLowerCase()}` : "fleethub-demo-agency";
 const DEMO_NAME = isolatedE2E ? `TEST_E2E_${e2eRunId} FleetHub Demo Agency` : "FleetHub Demo Agency";
 
+// Hosted E2E runs use fresh synthetic Auth users, but Vercel's edge may
+// replace a test x-forwarded-for header with the runner's real IP. Clear only
+// the staging login IP buckets before an isolated run so repeated synthetic
+// suites do not trip the real brute-force limiter. This script is guarded to
+// fleethub-staging above and is never used by the application or production.
+if (isolatedE2E) {
+  const { error } = await admin.from("login_rate_limit_buckets").delete().like("bucket_key", "ip:%");
+  if (error) throw new Error(`staging login bucket reset: ${error.message}`);
+}
+
 async function insert(table, payload, select = "id") {
   const { data, error } = await admin.from(table).insert(payload).select(select).single();
   if (error) throw new Error(`${table}: ${error.message}`);

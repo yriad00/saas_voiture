@@ -1,0 +1,7 @@
+# Local build and test artifacts are never part of the hosted application.
+.next
+node_modules
+test-results
+test-assets
+.env*
+*.tsbuildinfo

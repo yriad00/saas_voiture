@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 
 const url = process.env.FLEETHUB_TEST_SUPABASE_URL;
 const key = process.env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
@@ -87,6 +88,18 @@ async function removeDemoUsers() {
   }
 }
 
+async function removeSyntheticEmailRateLimitBuckets() {
+  if (!isolatedE2E) return;
+  const prefix = e2eRunId.toLowerCase();
+  const emails = [
+    `${prefix}-owner@fleethub-e2e.invalid`,
+    `${prefix}-agent@fleethub-e2e.invalid`,
+  ];
+  const keys = emails.map((email) => `email:${createHash("sha256").update("email:" + email).digest("hex")}`);
+  const { error } = await admin.from("login_rate_limit_buckets").delete().in("bucket_key", keys);
+  if (error) throw new Error(`synthetic login bucket cleanup: ${error.message}`);
+}
+
 const { data: agency, error: agencyError } = await admin.from("agencies").select("id,name,slug").eq("slug", DEMO_SLUG).maybeSingle();
 if (agencyError) throw agencyError;
 if (!agency) {
@@ -94,7 +107,10 @@ if (!agency) {
   // a chance to run (for example after an interrupted Playwright teardown).
   // Still remove only the isolated run's synthetic Auth users and orphan
   // profiles so a missing agency never leaves credentials behind.
-  if (isolatedE2E) await removeDemoUsers();
+  if (isolatedE2E) {
+    await removeDemoUsers();
+    await removeSyntheticEmailRateLimitBuckets();
+  }
   console.log(JSON.stringify({ reset: false, dryRun, reason: "Demo agency does not exist" }));
   process.exit(0);
 }
@@ -118,6 +134,7 @@ if (dryRun) {
 await removeStorage();
 await removeAgencyRows();
 await removeDemoUsers();
+await removeSyntheticEmailRateLimitBuckets();
 const { error: deleted } = await admin.from("agencies").delete().eq("id", agencyId).eq("slug", DEMO_SLUG);
 if (deleted) throw deleted;
 console.log(JSON.stringify({ reset: true, agencyId, scope: DEMO_SLUG }));

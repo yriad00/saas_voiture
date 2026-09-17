@@ -259,7 +259,12 @@ export async function createReservation(
     });
   }
 
-  revalidatePath("/agency/reservations");
+  // The create form renders its success state immediately. Revalidating the
+  // sibling list from inside this Server Action would invalidate the whole
+  // client flight tree on hosted Next runtimes and can discard that state
+  // before the user sees confirmation. The list/detail routes are dynamic and
+  // read the new row on navigation, so a broad post-action refresh is not
+  // needed here.
   endPerf();
   return { success: { id: created.id } };
 }
