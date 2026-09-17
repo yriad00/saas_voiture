@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../scripts/staging-target.mjs";
 
 function readEnvFile(file) {
   const values = {};
@@ -33,8 +34,7 @@ let client;
 
 before(async () => {
   if (skip) return;
-  const host = new URL(stagingUrl()).hostname;
-  assert.ok(!host.includes("wewajfotwphufsthfgul"), "atomic check-in tests must never target production");
+  assertStagingTarget(stagingUrl(), "FLEETHUB_TEST_SUPABASE_URL");
   admin = createClient(stagingUrl(), env("FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: userData, error: userError } = await admin.auth.admin.createUser({
     email: `${marker.toLowerCase()}@example.invalid`, password, email_confirm: true,

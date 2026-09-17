@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../scripts/staging-target.mjs";
 
 function readEnvFile(file) {
   const values = {};
@@ -21,7 +22,7 @@ let admin; let actor; let client; let agencyId; let branchId; let customerId; le
 
 before(async () => {
   if (skip) return;
-  assert.ok(!new URL(url()).hostname.includes("wewajfotwphufsthfgul"), "closure tests must never target production");
+  assertStagingTarget(url(), "FLEETHUB_TEST_SUPABASE_URL");
   admin = createClient(url(), env("FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false, autoRefreshToken: false } });
   const created = await admin.auth.admin.createUser({ email: `${marker.toLowerCase()}@example.invalid`, password, email_confirm: true, user_metadata: { full_name: marker } });
   assert.ifError(created.error); actor = created.data.user;

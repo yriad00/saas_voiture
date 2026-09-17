@@ -1,15 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
-const STAGING_HOST = "nyurwczpxpcpwqamfoek.supabase.co";
+import { assertStagingTarget } from "../../scripts/staging-target.mjs";
 
 function requireStagingUrl() {
   const raw = process.env.FLEETHUB_TEST_SUPABASE_URL;
   if (!raw) throw new Error("FLEETHUB_TEST_SUPABASE_URL is required for browser assertions.");
-  const parsed = new URL(raw);
-  if (parsed.protocol !== "https:" || parsed.hostname !== STAGING_HOST || raw.includes("wewajfotwphufsthfgul")) {
-    throw new Error(`Refusing browser DB assertion for non-staging host: ${parsed.hostname}`);
-  }
-  return raw.replace(/\/$/, "");
+  return assertStagingTarget(raw, "FLEETHUB_TEST_SUPABASE_URL").toString().replace(/\/$/, "");
 }
 
 let client: SupabaseClient | undefined;

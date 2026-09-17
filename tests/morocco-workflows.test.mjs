@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../scripts/staging-target.mjs";
 
 // These tests use an isolated test Supabase project and TEST_E2E tenants only.
 // No personal data, cards or messages. Production .env.local is never used to mutate data.
@@ -36,6 +37,8 @@ let ownerA;
 let ownerB;
 let branchAgent;
 let migrationReady = false;
+
+if (required.every(env)) assertStagingTarget(testUrl(), "FLEETHUB_TEST_SUPABASE_URL");
 
 async function createUser(label) {
   const email = `${marker.toLowerCase()}-${label}@example.invalid`;
@@ -95,12 +98,10 @@ async function signIn(user) {
 
 async function setup() {
   if (skip) return;
-  const testHost = new URL(testUrl()).hostname;
+  const testHost = assertStagingTarget(testUrl(), "FLEETHUB_TEST_SUPABASE_URL").hostname;
   const productionHost = productionEnv.NEXT_PUBLIC_SUPABASE_URL
     ? new URL(productionEnv.NEXT_PUBLIC_SUPABASE_URL).hostname : "";
   assert.notEqual(testHost, productionHost, "The Morocco workflow tests cannot target the production Supabase project");
-  assert.ok(!testHost.includes("wewajfotwphufsthfgul"),
-    "The Morocco workflow tests cannot target the known production Supabase project");
   admin = createClient(testUrl(), testServiceKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });

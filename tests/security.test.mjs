@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../scripts/staging-target.mjs";
 
 function readEnvFile(file = ".env.test.local") {
   const result = {};
@@ -24,9 +25,7 @@ const configured = required.every((key) => env(key));
 const skip = configured ? false : "Staging Supabase credentials are required; security tests fail closed instead of reading production .env.local.";
 if (configured) {
   const stagingUrl = env("FLEETHUB_TEST_SUPABASE_URL");
-  const host = new URL(stagingUrl).hostname;
-  assert.ok(!host.includes("wewajfotwphufsthfgul"), "security tests must never target production");
-  assert.ok(host.includes("nyurwczpxpcpwqamfoek"), "security tests must target the configured FleetHub staging project");
+  assertStagingTarget(stagingUrl, "FLEETHUB_TEST_SUPABASE_URL");
 }
 
 let admin;

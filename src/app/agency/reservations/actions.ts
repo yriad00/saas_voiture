@@ -12,7 +12,7 @@ import { logAudit } from "@/lib/services/audit";
 import { consumeRateLimit } from "@/lib/services/rate-limit";
 import { calculateRentalQuote } from "@/lib/services/pricing";
 import { roundMoney } from "@/lib/utils";
-import { startPerf } from "@/lib/perf";
+import { measurePerf, startPerf } from "@/lib/perf";
 import { moroccoDateTimeLocalToIso } from "@/lib/morocco-time";
 
 const schema = z.object({
@@ -95,11 +95,11 @@ export async function createReservation(
   }
 
   const supabase = await createClient();
-  if (!(await consumeRateLimit(supabase, "reservations.create", 30, 60))) {
+  if (!(await measurePerf("reservation.rateLimit", () => consumeRateLimit(supabase, "reservations.create", 30, 60)))) {
     return { error: "Trop de tentatives de réservation. Réessayez dans une minute." };
   }
 
-  const [{ data: customer }, { data: vehicle }] = await Promise.all([
+  const [{ data: customer }, { data: vehicle }] = await measurePerf("reservation.customerVehicle", () => Promise.all([
     supabase
       .from("customers")
       .select("id")
@@ -114,7 +114,7 @@ export async function createReservation(
       .eq("agency_id", ctx.membership.agencyId)
       .is("deleted_at", null)
       .maybeSingle() : Promise.resolve({ data: null, error: null }),
-  ]);
+  ]));
   if (!customer) return { error: "Client introuvable dans cette agence." };
   if (vehicleId && !vehicle) return { error: "Véhicule introuvable dans cette agence." };
   if (vehicle?.branch_id && branchId && vehicle.branch_id !== branchId) {
@@ -123,7 +123,7 @@ export async function createReservation(
   branchId = vehicle?.branch_id ?? branchId;
   let quote;
   try {
-    quote = vehicleId ? await calculateRentalQuote(supabase, {
+      quote = vehicleId ? await measurePerf("reservation.pricingQuote", () => calculateRentalQuote(supabase, {
       agencyId: ctx.membership.agencyId,
       branchId,
       vehicleId,
@@ -133,7 +133,7 @@ export async function createReservation(
       manualDiscount: d.discount,
       promotionCode: d.promotion_code?.trim() || undefined,
       canOverrideMinimum: ["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey),
-    }) : {
+      })) : {
       days: totalDays,
       baseDailyRate: d.daily_rate,
       dailyRate: d.daily_rate,
@@ -152,13 +152,13 @@ export async function createReservation(
   if (isPricingOverride && !d.pricing_override_reason) {
     return { error: "Un motif est obligatoire pour appliquer un tarif inférieur au minimum." };
   }
-  const { data: riskFlag } = await supabase
+  const { data: riskFlag } = await measurePerf("reservation.riskFlag", async () => supabase
     .from("customer_risk_flags")
     .select("id, reason")
     .eq("agency_id", ctx.membership.agencyId)
     .eq("customer_id", d.customer_id)
     .eq("status", "OPEN")
-    .maybeSingle();
+    .maybeSingle());
   if (riskFlag && !can(ctx, "customers.blacklist.manage")) {
     return { error: "Ce client est signalé. Un manager doit résoudre le signalement avant toute réservation." };
   }
@@ -167,19 +167,19 @@ export async function createReservation(
   }
 
   try {
-    if (vehicleId && await hasReservationOverlap(supabase, ctx.membership.agencyId, vehicleId, d.start_date, d.end_date, undefined, pickupAt, returnAt)) {
+    if (vehicleId && await measurePerf("reservation.overlap", () => hasReservationOverlap(supabase, ctx.membership.agencyId, vehicleId, d.start_date, d.end_date, undefined, pickupAt, returnAt))) {
       return { error: "Ce véhicule est déjà réservé sur cette période." };
     }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Impossible de vérifier la disponibilité." };
   }
 
-  const reference = await nextReservationReference(ctx.membership.agencyId);
+  const reference = await measurePerf("reservation.reference", () => nextReservationReference(ctx.membership.agencyId));
   const depositAmount = Math.max(0, d.deposit_amount);
   const bookingTotal = roundMoney(quote.total + d.one_way_fee);
   const advanceAmount = Math.min(bookingTotal, Math.max(0, d.advance_amount));
 
-  const { data: created, error } = await (supabase as any)
+  const { data: created, error } = await measurePerf("reservation.insert", async () => (supabase as any)
     .from("reservations")
     .insert({
       agency_id: ctx.membership.agencyId,
@@ -215,7 +215,7 @@ export async function createReservation(
       created_by: ctx.user.id,
     })
     .select("id")
-    .single();
+    .single());
 
   if (error || !created) {
     if (error?.message.includes("vehicle_unavailable_during_block")) return { error: "Ce véhicule est bloqué sur cette période." };
@@ -242,6 +242,7 @@ export async function createReservation(
 
   await logAudit(supabase, {
     agencyId: ctx.membership.agencyId,
+    branchId,
     actorId: ctx.user.id,
     action: "RESERVATION_CREATED",
     entityType: "reservation",
@@ -251,6 +252,7 @@ export async function createReservation(
   if (riskFlag) {
     await logAudit(supabase, {
       agencyId: ctx.membership.agencyId,
+      branchId,
       actorId: ctx.user.id,
       action: "CUSTOMER_RISK_OVERRIDE",
       entityType: "customer",

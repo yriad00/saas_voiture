@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "../scripts/staging-target.mjs";
 
 function readEnv() {
   const values = {};
@@ -18,7 +19,7 @@ const url = env.FLEETHUB_TEST_SUPABASE_URL;
 const anonKey = env.FLEETHUB_TEST_SUPABASE_ANON_KEY;
 const serviceKey = env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
 assert.ok(url && anonKey && serviceKey, "staging test credentials are required");
-assert.ok(!url.includes("wewajfotwphufsthfgul"), "rate-limit test cannot target production");
+assertStagingTarget(url, "FLEETHUB_TEST_SUPABASE_URL");
 
 const anon = createClient(url, anonKey, { auth: { persistSession: false } });
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
