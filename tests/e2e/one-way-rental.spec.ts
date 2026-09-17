@@ -46,7 +46,10 @@ async function uploadPhotos(page: Page, title: string, contractId: string, inspe
     await expect.poll(async () => {
       const photos = await rows("contract_inspection_photos", { contract_id: contractId, inspection_type: inspectionType });
       return photos.filter((photo) => photo.photo_type === types[index]).length;
-    }, { timeout: 15_000 }).toBe(1);
+    // Hosted staging may queue the first Storage/server-action invocation for
+    // the same measured cold-start window as other mutations. Assert the
+    // persisted row, but allow that transport window to complete.
+    }, { timeout: 60_000 }).toBe(1);
   }
 }
 

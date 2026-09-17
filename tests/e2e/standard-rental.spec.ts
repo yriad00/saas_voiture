@@ -41,7 +41,9 @@ async function uploadInspectionPhotos(page: Page, title: string, contractId: str
     await expect.poll(async () => {
       const photos = await rows("contract_inspection_photos", { contract_id: contractId, inspection_type: inspectionType });
       return photos.filter((photo) => photo.photo_type === expectedTypes[index]).length;
-    }, { timeout: 15_000 }).toBe(1);
+    // Keep this a persisted-storage assertion while allowing the measured
+    // hosted cold-start/transport window for photo uploads.
+    }, { timeout: 60_000 }).toBe(1);
   }
 }
 
