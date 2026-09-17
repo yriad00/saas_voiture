@@ -1,7 +1,6 @@
 "use server";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAgencyPermission } from "@/lib/auth/session";
 import { logAudit } from "@/lib/services/audit";
@@ -95,6 +94,9 @@ export async function uploadContractPhoto(
     entityId: parsed.data.contract_id,
     metadata: { inspectionType: parsed.data.inspection_type, photoType: parsed.data.photo_type, photoId: photo.id, contentType: fileValue.type, sizeBytes: fileValue.size },
   });
-  revalidatePath(`/agency/contracts/${parsed.data.contract_id}`);
+  // Keep the photo form mounted so a slow hosted Storage response cannot
+  // remount the six upload controls and lose their local pending/success
+  // state. The persisted row and Storage object are authoritative; the
+  // dossier is refreshed naturally on the next navigation/reload.
   return { success: true };
 }
