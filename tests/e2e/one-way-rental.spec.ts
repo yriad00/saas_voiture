@@ -180,7 +180,9 @@ test("one-way rental completes from Casablanca pickup to Marrakech return in the
   await page.locator("#method").selectOption("TRANSFER");
   await page.locator("#reference").fill("TEST_E2E-ONE-WAY-SOLDE");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 15_000 });
+  // Hosted Vercel server actions can take up to the measured cold transport
+  // window before the redirect is observable in the browser.
+  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 60_000 });
   await page.goto(`/agency/contracts/${contractId}?one-way-settlement=${Date.now()}`, { waitUntil: "domcontentloaded" });
   const refundForm = page.locator("#caution form");
   await refundForm.locator("#transaction_type").selectOption("REFUND");
