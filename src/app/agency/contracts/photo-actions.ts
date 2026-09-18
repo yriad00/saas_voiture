@@ -12,6 +12,7 @@ const schema = z.object({
   contract_id: z.string().uuid(),
   inspection_type: z.enum(["PICKUP", "RETURN"]),
   photo_type: z.enum(["FRONT", "REAR", "LEFT", "RIGHT", "INTERIOR", "DASHBOARD", "OTHER"]).default("OTHER"),
+  idempotency_key: z.string().uuid().optional(),
 });
 
 export type PhotoFormState = { error?: string; success?: boolean };
@@ -27,6 +28,7 @@ export async function uploadContractPhoto(
     contract_id: formData.get("contract_id"),
     inspection_type: formData.get("inspection_type"),
     photo_type: formData.get("photo_type") || "OTHER",
+    idempotency_key: formData.get("idempotency_key") || undefined,
   });
   if (!parsed.success) return { error: "Constat ou contrat invalide." };
 
@@ -64,11 +66,23 @@ export async function uploadContractPhoto(
   }
 
   const safeName = fileValue.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-80) || "photo";
-  const storagePath = `${ctx.membership.agencyId}/${parsed.data.contract_id}/${parsed.data.inspection_type}/${crypto.randomUUID()}-${safeName}`;
+  const idempotencyKey = parsed.data.idempotency_key ?? crypto.randomUUID();
+  const storagePath = `${ctx.membership.agencyId}/${parsed.data.contract_id}/${parsed.data.inspection_type}/${idempotencyKey}-${safeName}`;
+  const { data: existingPhoto } = await supabase
+    .from("contract_inspection_photos")
+    .select("id")
+    .eq("agency_id", ctx.membership.agencyId)
+    .eq("storage_path", storagePath)
+    .maybeSingle();
+  if (existingPhoto) return { success: true };
+
   const { error: uploadError } = await measurePerf("photo.storage.upload", () => supabase.storage.from("contract-photos").upload(storagePath, fileValue, {
     contentType: fileValue.type,
     cacheControl: "3600",
-    upsert: false,
+    // The path is derived from the idempotency key. A retry may have already
+    // uploaded the object while its response was lost, so replacing that same
+    // object is safe and avoids creating a second path.
+    upsert: true,
   }));
   if (uploadError) return { error: uploadError.message };
 
@@ -85,6 +99,15 @@ export async function uploadContractPhoto(
     created_by: ctx.user.id,
   }).select("id").single());
   if (insertError || !photo) {
+    if (insertError?.code === "23505") {
+      const { data: committedPhoto } = await supabase
+        .from("contract_inspection_photos")
+        .select("id")
+        .eq("agency_id", ctx.membership.agencyId)
+        .eq("storage_path", storagePath)
+        .maybeSingle();
+      if (committedPhoto) return { success: true };
+    }
     await supabase.storage.from("contract-photos").remove([storagePath]);
     return { error: insertError?.message ?? "Impossible d'enregistrer la photo." };
   }

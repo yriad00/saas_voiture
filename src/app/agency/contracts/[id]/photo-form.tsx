@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 
 type PhotoFormState = { error?: string; success?: boolean };
 
+const makePhotoKey = () => typeof crypto !== "undefined" && "randomUUID" in crypto
+  ? crypto.randomUUID()
+  : `00000000-0000-4000-8000-${Date.now().toString().padStart(12, "0").slice(-12)}`;
+
 function Submit({ hydrated, pending }: { hydrated: boolean; pending: boolean }) {
   return <Button type="submit" size="sm" variant="outline" disabled={!hydrated || pending}>{pending ? <Loader2 className="animate-spin" /> : <ImagePlus />} Ajouter</Button>;
 }
@@ -16,6 +20,7 @@ export function PhotoForm({ contractId, inspectionType, photoType = "OTHER" }: {
   const [preview, setPreview] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [pending, setPending] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(makePhotoKey);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setHydrated(true), 0);
@@ -27,27 +32,37 @@ export function PhotoForm({ contractId, inspectionType, photoType = "OTHER" }: {
   useEffect(() => {
     if (!state.success) return;
     if (inputRef.current) inputRef.current.value = "";
-    queueMicrotask(() => setPreview(null));
+    queueMicrotask(() => {
+      setPreview(null);
+      setIdempotencyKey(makePhotoKey());
+    });
   }, [state.success]);
 
   const removeSelection = () => {
     if (inputRef.current) inputRef.current.value = "";
     setPreview(null);
+    setIdempotencyKey(makePhotoKey());
   };
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!hydrated || pending) return;
     const formData = new FormData(event.currentTarget);
+    formData.set("idempotency_key", idempotencyKey);
     setState({});
     setPending(true);
-    void fetch("/api/contracts/photo", { method: "POST", body: formData, credentials: "same-origin", cache: "no-store" })
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
+    void fetch("/api/contracts/photo", { method: "POST", body: formData, credentials: "same-origin", cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const next = await response.json().catch(() => ({}));
         setState(response.ok ? next : { error: next.error ?? "Impossible d’enregistrer la photo. Réessayez." });
       })
-      .catch(() => setState({ error: "Impossible d’enregistrer la photo. Réessayez." }))
-      .finally(() => setPending(false));
+      .catch((error: unknown) => setState({ error: error instanceof DOMException && error.name === "AbortError" ? "Le téléversement prend trop de temps. Vérifiez la connexion puis réessayez." : "Impossible d’enregistrer la photo. Réessayez." }))
+      .finally(() => {
+        window.clearTimeout(timeout);
+        setPending(false);
+      });
   };
 
   return (
@@ -57,6 +72,7 @@ export function PhotoForm({ contractId, inspectionType, photoType = "OTHER" }: {
       <input type="text" className="hidden" name="photo_type" value={photoType} readOnly />
       <Input ref={inputRef} name="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required className="h-9 max-w-xs text-xs" onChange={(event) => {
         const file = event.currentTarget.files?.[0];
+        if (file) setIdempotencyKey(makePhotoKey());
         setPreview(file ? URL.createObjectURL(file) : null);
       }} />
       <Submit hydrated={hydrated} pending={pending} />
