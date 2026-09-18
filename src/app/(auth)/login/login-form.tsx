@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
@@ -8,10 +8,10 @@ import { signIn, type LoginState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
-function SubmitButton() {
+function SubmitButton({ hydrated }: { hydrated: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button type="submit" className="w-full" disabled={!hydrated || pending}>
       {pending && <Loader2 className="animate-spin" />}
       Se connecter
     </Button>
@@ -21,7 +21,13 @@ function SubmitButton() {
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const [hydrated, setHydrated] = useState(false);
   const [state, formAction] = useActionState<LoginState, FormData>(signIn, {});
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (state.redirectTo) {
@@ -45,7 +51,7 @@ export function LoginForm() {
           {state.error}
         </p>
       )}
-      <SubmitButton />
+      <SubmitButton hydrated={hydrated} />
     </form>
   );
 }
