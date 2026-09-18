@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, Ban, Play } from "lucide-react";
-import { closeContract, setContractStatus } from "../actions";
+import { setContractStatus } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -48,7 +48,10 @@ export function ContractActions({
 
   const submitClose = (formData: FormData) => {
     startTransition(async () => {
-      const res = await closeContract(contractId, formData);
+      const payload = formData;
+      payload.set("contract_id", contractId);
+      const response = await fetch("/api/contracts/close", { method: "POST", body: payload, cache: "no-store" });
+      const res = await response.json().catch(() => ({ error: "Impossible de clôturer la location. Réessayez." }));
       if (res?.error) return window.alert(res.error);
       setShowClose(false);
       router.refresh();
@@ -86,7 +89,7 @@ export function ContractActions({
         <Card className="mt-2">
           <CardHeader><CardTitle className="text-base">Clôture — restitution du véhicule</CardTitle></CardHeader>
           <CardContent>
-            <form action={submitClose} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <form action={submitClose} onSubmit={(event) => { event.preventDefault(); submitClose(new FormData(event.currentTarget)); }} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="end_mileage">Kilométrage au retour</Label>
                 <Input id="end_mileage" name="end_mileage" type="number" min={0} placeholder="Ex. 45500" />

@@ -274,7 +274,7 @@ export async function createContract(
   ),
 });
 
-export async function closeContract(contractId: string, formData: FormData) {
+export async function closeContract(contractId: string, formData: FormData, options?: { revalidate?: boolean }) {
   const endPerf = startPerf("closeContract");
   const ctx = await requireAgencyPermission("contracts.update", ["AGENCY_OWNER", "MANAGER", "AGENT"]);
   const parsed = closeSchema.safeParse(Object.fromEntries(formData));
@@ -354,8 +354,10 @@ export async function closeContract(contractId: string, formData: FormData) {
     metadata: { endMileage: parsed.data.end_mileage ?? null, fuelLevelEnd: parsed.data.fuel_level_end ?? null, returnBranchId: finalReturnBranchId },
   });
 
-  revalidatePath("/agency/contracts");
-  revalidatePath(`/agency/contracts/${contractId}`);
+  if (options?.revalidate !== false) {
+    revalidatePath("/agency/contracts");
+    revalidatePath(`/agency/contracts/${contractId}`);
+  }
   endPerf();
   return { ok: true };
 }

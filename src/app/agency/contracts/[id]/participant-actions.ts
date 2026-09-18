@@ -9,7 +9,7 @@ import { logAudit } from "@/lib/services/audit";
 
 const optionalUuid = z.preprocess((value) => value === "" || value == null ? undefined : value, z.string().uuid().optional());
 
-export async function saveRentalParticipants(_prev: { error?: string; success?: boolean }, formData: FormData) {
+export async function saveRentalParticipants(_prev: { error?: string; success?: boolean }, formData: FormData, options?: { revalidate?: boolean }) {
   const ctx = await requireAgencyPermission("contracts.update", ["AGENCY_OWNER", "MANAGER", "AGENT"]);
   const parsed = z.object({ contract_id: z.string().uuid(), payer_customer_id: optionalUuid, principal_driver_customer_id: optionalUuid }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Données invalides." };
@@ -37,6 +37,6 @@ export async function saveRentalParticipants(_prev: { error?: string; success?: 
   const { error: contractError } = await (supabase as any).from("contracts").update({ payer_customer_id: d.payer_customer_id ?? null, principal_driver_customer_id: d.principal_driver_customer_id ?? contract.customer_id }).eq("id", contract.id).eq("agency_id", ctx.membership.agencyId);
   if (contractError) return { error: contractError.message };
   await logAudit(supabase, { agencyId: ctx.membership.agencyId, branchId: contract.branch_id, actorId: ctx.user.id, action: "RENTAL_PARTICIPANTS_UPDATED", entityType: "contract", entityId: contract.id, metadata: { payer: d.payer_customer_id ?? null, principalDriver: d.principal_driver_customer_id ?? contract.customer_id, additionalDrivers: additionalDriverIds } });
-  revalidatePath(`/agency/contracts/${contract.id}`);
+  if (options?.revalidate !== false) revalidatePath(`/agency/contracts/${contract.id}`);
   return { success: true };
 }
