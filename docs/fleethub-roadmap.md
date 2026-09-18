@@ -491,3 +491,13 @@ pas disponibles.
   validation HTTPS/hébergement régional ne peut donc pas être revendiquée;
   `npm run test:e2e:release` échoue volontairement en fail-closed tant qu'une
   URL de staging hébergée n'est pas fournie/configurée.
+
+## PERFORMANCE DATA-LOADING REFACTOR — 18 septembre 2026
+
+- `get_today_overview` et `get_dashboard_summary` sont des read-models SQL `SECURITY INVOKER`, limités par agence/branche et exécutés via une seule lecture RPC par page. Les fonctions fixent `search_path = public, private`, révoquent l’exécution publique et conservent les politiques RLS existantes.
+- Aujourd’hui est passé de 22 lectures logiques (datasets complets + lookups JS) à 1 RPC agrégé ; le Dashboard est passé de 9 lectures de datasets à 1 RPC agrégé. Les alertes documents client/véhicule restent incluses après la migration corrective `performance_overview_alerts_fix`.
+- Le dossier contrat réutilise maintenant la lecture `return_charges` pour le calcul financier et l’affichage, supprimant une lecture dupliquée sans modifier les totaux ni les règles financières.
+- Mesure Playwright sur le build production local pointant staging (`http://127.0.0.1:3200`) : Aujourd’hui 689 ms, Réservations 804 ms, détail réservation 741 ms, nouvelle réservation 689 ms, Clients 620 ms, Véhicules 642 ms, Locations 620 ms, détail contrat 1 308 ms, Paiement 576 ms, Caisse 740 ms, Opérations 864 ms. Ce sont des mesures locales et ne remplacent pas une mesure HTTPS hébergée.
+- `npm run test:security` : 8/8 ; `npm run test:financial` : 9/9 ; `npm run test:morocco` : 15/15 avec fixtures synthétiques staging et nettoyage vérifié. `npx tsc --noEmit`, `npm run build` et `npm run lint` passent (lint : 0 erreur, 6 avertissements `<img>` préexistants).
+- La suite Playwright complète a été lancée sur le build staging local ; les premiers tests de workflow ont exposé des attentes de toast obsolètes (`Réservation créée`) et ont été interrompus après constat, sans modifier les tests ni masquer l’échec. Les fixtures du run interrompu ont été supprimées et vérifiées (0 agence/objet Storage restant).
+- Aucun changement de RLS, d’index, de cache financier ou de logique métier n’a été effectué. Les résultats Supabase Advisor existants (policies auth init-plan, indexes dupliqués, leaked-password protection) restent documentés et hors de cette passe.
