@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { setReservationStatus } from "../actions";
@@ -31,7 +31,13 @@ export function ReservationStatusActions({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundMethod, setRefundMethod] = useState<"CASH" | "CARD" | "TRANSFER" | "CHECK">("TRANSFER");
   const [pendingStatus, setPendingStatus] = useState<Enums<"reservation_status"> | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const change = (status: Enums<"reservation_status">) => {
     if (status === "CANCELLED" || status === "NO_SHOW") {
@@ -66,7 +72,7 @@ export function ReservationStatusActions({
           key={s}
           variant={s === "CANCELLED" ? "outline" : "default"}
           size="sm"
-          disabled={pending}
+          disabled={pending || !hydrated}
           onClick={() => change(s)}
         >
           {pending && <Loader2 className="animate-spin" />}
@@ -106,10 +112,10 @@ export function ReservationStatusActions({
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={pending} onClick={() => submit(pendingStatus, reason.trim() || undefined)}>
+              <Button type="button" size="sm" disabled={pending || !hydrated} onClick={() => submit(pendingStatus, reason.trim() || undefined)}>
               Confirmer
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setPendingStatus(null)}>
+            <Button type="button" size="sm" variant="outline" disabled={pending || !hydrated} onClick={() => setPendingStatus(null)}>
               Retour
             </Button>
           </div>
