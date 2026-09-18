@@ -1,5 +1,5 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { saveCheckin, type CheckinState } from "./checkin-actions";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,15 @@ import { SignaturePad } from "./signature-pad";
 import { PhotoForm } from "./photo-form";
 import { toMoroccoDateTimeLocal } from "@/lib/morocco-time";
 
-function Submit({ label }: { label: string }) { const { pending } = useFormStatus(); return <Button type="submit" disabled={pending}>{pending ? "Enregistrement…" : label}</Button>; }
+function Submit({ label, hydrated }: { label: string; hydrated: boolean }) { const { pending } = useFormStatus(); return <Button type="submit" disabled={!hydrated || pending}>{pending ? "Enregistrement…" : label}</Button>; }
 
 export function CheckinForm({ contractId, branchId, branches = [], showReturnPhotos = false }: { contractId: string; branchId: string; branches?: Array<{ id: string; name: string }>; showReturnPhotos?: boolean }) {
   const [state, action] = useActionState<CheckinState, FormData>(saveCheckin, {});
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const draft = state.review?.draft;
   const value = (key: string, fallback = "") => String(draft?.[key] ?? fallback);
   return <div className="space-y-4"><form action={action} className="space-y-3 rounded-md border border-dashed p-4">
@@ -29,6 +34,6 @@ export function CheckinForm({ contractId, branchId, branches = [], showReturnPho
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><Label htmlFor="exterior">État extérieur</Label><Textarea id="exterior" name="exterior_condition" rows={3}/></div><div><Label htmlFor="interior">État intérieur / notes</Label><Textarea id="interior" name="interior_condition" rows={3}/></div></div><input type="hidden" className="hidden" name="finalize" defaultValue="false" />
       <div><Label>Signature client au retour</Label><SignaturePad required /></div>
     </>}
-    {state.error && <p className="text-sm text-destructive">{state.error}</p>}<Submit label={state.review ? "Finaliser le retour" : "Enregistrer et revoir"}/>
+    {state.error && <p className="text-sm text-destructive">{state.error}</p>}<Submit hydrated={hydrated} label={state.review ? "Finaliser le retour" : "Enregistrer et revoir"}/>
   </form>{(state.review || showReturnPhotos) && <div className="rounded-md border border-dashed p-3"><p className="mb-3 text-sm font-medium">Photos du retour</p><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{([['FRONT','Avant'],['REAR','Arrière'],['LEFT','Côté gauche'],['RIGHT','Côté droit'],['INTERIOR','Intérieur'],['DASHBOARD','Tableau de bord']] as const).map(([value, label]) => <div key={value} className="space-y-1"><p className="text-xs font-medium text-muted-foreground">{label}</p><PhotoForm contractId={contractId} inspectionType="RETURN" photoType={value} /></div>)}</div></div>}</div>;
 }
