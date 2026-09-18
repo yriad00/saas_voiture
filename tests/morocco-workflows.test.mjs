@@ -12,7 +12,10 @@ function readEnvFile(path) {
   try {
     for (const line of fs.readFileSync(path, "utf8").split(/\r?\n/)) {
       const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (match && !match[2].startsWith("#")) values[match[1]] = match[2].trim();
+      if (match && !match[2].startsWith("#")) {
+        const value = match[2].trim();
+        values[match[1]] = value.replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_, doubleQuoted, singleQuoted) => doubleQuoted ?? singleQuoted);
+      }
     }
   } catch {
     // CI may provide environment variables directly.

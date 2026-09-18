@@ -10,6 +10,10 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) {
+      return NextResponse.json({ error: "Requête non autorisée." }, { status: 403, headers: { "cache-control": "no-store" } });
+    }
     const result = await uploadContractPhoto({}, await request.formData());
     return NextResponse.json(result, {
       status: result.error ? 400 : 200,
