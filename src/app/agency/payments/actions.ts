@@ -34,6 +34,7 @@ export type PaymentFormState = {
 export async function createPayment(
   _prev: PaymentFormState,
   formData: FormData,
+  options: { revalidate?: boolean } = {},
 ): Promise<PaymentFormState> {
   const endPerf = startPerf("createPayment");
   const ctx = await requireAgency(["AGENCY_OWNER", "MANAGER", "ACCOUNTANT"]);
@@ -168,10 +169,12 @@ export async function createPayment(
     metadata: { contractId: d.contract_id || null, type: d.type, amount: roundMoney(d.amount), method: d.method },
   });
 
-  revalidatePath("/agency/payments");
-  revalidatePath("/agency/caisse");
-  if (d.contract_id) revalidatePath(`/agency/contracts/${d.contract_id}`);
-  if (d.reservation_id) revalidatePath(`/agency/reservations/${d.reservation_id}`);
+  if (options.revalidate !== false) {
+    revalidatePath("/agency/payments");
+    revalidatePath("/agency/caisse");
+    if (d.contract_id) revalidatePath(`/agency/contracts/${d.contract_id}`);
+    if (d.reservation_id) revalidatePath(`/agency/reservations/${d.reservation_id}`);
+  }
   endPerf();
   return { success: true, redirectTo: d.contract_id ? `/agency/contracts/${d.contract_id}` : d.reservation_id ? `/agency/reservations/${d.reservation_id}` : "/agency/payments" };
 }

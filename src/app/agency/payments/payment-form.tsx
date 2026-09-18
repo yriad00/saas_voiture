@@ -1,11 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { createPayment, type PaymentFormState } from "./actions";
+import type { PaymentFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -23,16 +22,6 @@ function Field({ label, name, error, children }: { label: string; name: string; 
   );
 }
 
-function Submit() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending && <Loader2 className="animate-spin" />}
-      Enregistrer le paiement
-    </Button>
-  );
-}
-
 export function PaymentForm({
   contracts,
   reservations,
@@ -46,7 +35,8 @@ export function PaymentForm({
   defaultReservationId?: string;
   backHref: string;
 }) {
-  const [state, action] = useActionState<PaymentFormState, FormData>(createPayment, {});
+  const [state, setState] = useState<PaymentFormState>({});
+  const [pending, setPending] = useState(false);
   const fe = state.fieldErrors ?? {};
   const router = useRouter();
   // A key belongs to one mounted submission attempt.  `useId()` is stable
@@ -57,16 +47,34 @@ export function PaymentForm({
     ? crypto.randomUUID()
     : `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-  useEffect(() => {
-    if (state.success && state.redirectTo) {
-      router.push(state.redirectTo);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    setPending(true);
+    setState({});
+    try {
+      const response = await fetch("/api/payments", {
+        method: "POST",
+        body: new FormData(event.currentTarget),
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const result = (await response.json()) as PaymentFormState;
+      setState(result);
+      if (response.ok && result.success && result.redirectTo) {
+        router.push(result.redirectTo);
+      }
+    } catch {
+      setState({ error: "Impossible d’enregistrer le paiement. Réessayez." });
+    } finally {
+      setPending(false);
     }
-  }, [state.success, state.redirectTo, router]);
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <form action={action} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <input type="text" className="hidden" name="idempotency_key" value={idempotencyKey} readOnly />
       <Card>
         <CardHeader><CardTitle className="text-base">Détails du paiement</CardTitle></CardHeader>
@@ -140,7 +148,10 @@ export function PaymentForm({
       )}
 
       <div className="flex items-center gap-3">
-        <Submit />
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2 className="animate-spin" />}
+          {pending ? "Enregistrement…" : "Enregistrer le paiement"}
+        </Button>
         <Button asChild variant="ghost"><Link href={backHref}>Annuler</Link></Button>
       </div>
     </form>

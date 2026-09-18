@@ -226,7 +226,10 @@ test("standard rental is executed through the browser and reconciles in staging"
   await deductionForm.locator("#deposit_amount_tx").fill("500");
   await deductionForm.locator("#deposit_reason").fill("Dommage TEST_E2E");
   await deductionForm.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  await expect(deductionForm.getByText("Opération de caution enregistrée.", { exact: true })).toBeVisible({ timeout: 15_000 });
+  // Hosted staging can take several seconds for the authenticated audit write
+  // and deposit trigger; keep the assertion bounded without treating a slow
+  // but successful financial confirmation as a transport failure.
+  await expect(deductionForm.getByText("Opération de caution enregistrée.", { exact: true })).toBeVisible({ timeout: 60_000 });
   await expect.poll(async () => {
     const transactions = await rows("deposit_transactions", { deposit_id: depositId, transaction_type: "DEDUCTION" });
     return transactions.some((transaction) => Number(transaction.amount) === 500);
