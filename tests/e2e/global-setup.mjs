@@ -81,29 +81,32 @@ export default async function globalSetup() {
   }
   const browser = await chromium.launch();
   try {
-    const context = await browser.newContext({ baseURL: hostedUrl, extraHTTPHeaders: { "x-forwarded-for": e2eIp } });
-    const page = await context.newPage();
-    await page.goto("/login", { waitUntil: "domcontentloaded" });
-    await page.getByLabel("Email", { exact: true }).fill(fixture.owner.email);
-    await page.getByLabel("Mot de passe", { exact: true }).fill(fixture.owner.password);
-    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
-    // Hosted Vercel can queue a cold serverless auth action before the
-    // redirect is observable by the browser. Keep the assertion strict while
-    // allowing the measured staging transport window.
-    await page.waitForURL(/\/agency(?:\/|$)/, { timeout: 60_000 });
-    await context.storageState({ path: authPath });
-    // Authenticate the branch-limited employee once during setup. The tests
-    // reuse this browser state so repeated suites do not trip the real Auth
-    // provider's IP throttling while still exercising the UI as an Agent.
-    const agentContext = await browser.newContext({ baseURL: hostedUrl, extraHTTPHeaders: { "x-forwarded-for": e2eIp } });
-    const agentPage = await agentContext.newPage();
-    await agentPage.goto("/login", { waitUntil: "domcontentloaded" });
-    await agentPage.getByLabel("Email", { exact: true }).fill(fixture.agent.email);
-    await agentPage.getByLabel("Mot de passe", { exact: true }).fill(fixture.agent.password);
-    await agentPage.getByRole("button", { name: "Se connecter", exact: true }).click();
-    await agentPage.waitForURL(/\/agency(?:\/|$)/, { timeout: 60_000 });
-    await agentContext.storageState({ path: agentAuthPath });
-    await agentContext.close();
+    // Hosted Vercel runs share one provider egress IP. Logging two synthetic
+    // accounts through the application on every run would consume the real
+    // login limiter and make workflow tests depend on an unrelated IP window.
+    // Authenticate against the staging Auth API and construct the same SSR
+    // cookie for the browser contexts. This does not bypass application auth
+    // or change production behaviour; the login UI/rate-limit tests remain
+    // separate from the workflow fixture setup.
+    const stagingAuthUrl = `${testEnv.FLEETHUB_TEST_SUPABASE_URL.replace(/\/$/, "")}/auth/v1/token?grant_type=password`;
+    const hosted = new URL(hostedUrl);
+    const stagingRef = new URL(testEnv.FLEETHUB_TEST_SUPABASE_URL).hostname.split(".")[0];
+    const storageKey = `sb-${stagingRef}-auth-token`;
+    const createStorageState = async (credential, outputPath) => {
+      const response = await fetch(stagingAuthUrl, { method: "POST", headers: { apikey: testEnv.FLEETHUB_TEST_SUPABASE_ANON_KEY, "content-type": "application/json" }, body: JSON.stringify({ email: credential.email, password: credential.password }) });
+      const session = await response.json();
+      if (!response.ok || !session?.access_token || !session?.refresh_token) throw new Error(`staging Auth setup failed: ${session?.msg ?? session?.error_description ?? session?.message ?? `HTTP ${response.status}`}`);
+      const cookieValue = `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
+      const context = await browser.newContext({ baseURL: hostedUrl, extraHTTPHeaders: { "x-forwarded-for": e2eIp } });
+      await context.addCookies([{ name: storageKey, value: cookieValue, url: hosted.origin, secure: hosted.protocol === "https:", sameSite: "Lax", expires: session.expires_at ?? Math.floor(Date.now() / 1000) + session.expires_in }]);
+      const page = await context.newPage();
+      await page.goto("/agency", { waitUntil: "domcontentloaded" });
+      if (!new URL(page.url()).pathname.startsWith("/agency")) throw new Error("staging Auth cookie did not establish an agency session");
+      await context.storageState({ path: outputPath });
+      await context.close();
+    };
+    await createStorageState(fixture.owner, authPath);
+    await createStorageState(fixture.agent, agentAuthPath);
     fs.writeFileSync(contextPath, JSON.stringify({ hostedUrl, fixture, e2eRunId: testEnv.FLEETHUB_E2E_RUN_ID, e2eIp }, null, 2), { encoding: "utf8", mode: 0o600 });
   } catch (error) {
     // The teardown still receives the fixture through this file if seeding completed.

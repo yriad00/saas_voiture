@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2 } from "lucide-react";
-import { uploadContractPhoto, type PhotoFormState } from "../photo-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+type PhotoFormState = { error?: string; success?: boolean };
 
 function Submit({ hydrated, pending }: { hydrated: boolean; pending: boolean }) {
   return <Button type="submit" size="sm" variant="outline" disabled={!hydrated || pending}>{pending ? <Loader2 className="animate-spin" /> : <ImagePlus />} Ajouter</Button>;
@@ -14,7 +15,7 @@ export function PhotoForm({ contractId, inspectionType, photoType = "OTHER" }: {
   const [state, setState] = useState<PhotoFormState>({});
   const [preview, setPreview] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setHydrated(true), 0);
@@ -39,10 +40,14 @@ export function PhotoForm({ contractId, inspectionType, photoType = "OTHER" }: {
     if (!hydrated || pending) return;
     const formData = new FormData(event.currentTarget);
     setState({});
-    startTransition(async () => {
-      const next = await uploadContractPhoto(state, formData);
-      setState(next);
-    });
+    setPending(true);
+    void fetch("/api/contracts/photo", { method: "POST", body: formData, credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        const next = await response.json().catch(() => ({}));
+        setState(response.ok ? next : { error: next.error ?? "Impossible d’enregistrer la photo. Réessayez." });
+      })
+      .catch(() => setState({ error: "Impossible d’enregistrer la photo. Réessayez." }))
+      .finally(() => setPending(false));
   };
 
   return (
