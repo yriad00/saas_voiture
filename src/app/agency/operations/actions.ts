@@ -123,7 +123,7 @@ export async function overrideReturnCharge(_prev: any, formData: FormData) {
   revalidatePath(`/agency/contracts/${charge.contract_id}`); return { success: true };
 }
 
-export async function recordDepositTransaction(_prev: any, formData: FormData) {
+export async function recordDepositTransaction(_prev: any, formData: FormData, options?: { revalidate?: boolean }) {
   const ctx = await requireAgencyPermission("payments.create", ["AGENCY_OWNER", "MANAGER", "ACCOUNTANT"]);
   const p = z.object({
     deposit_id: uuid,
@@ -169,8 +169,10 @@ export async function recordDepositTransaction(_prev: any, formData: FormData) {
   const { error } = await (s as any).from("deposit_transactions").insert({ ...p.data, agency_id: ctx.membership.agencyId, settles_balance: p.data.transaction_type === "DEDUCTION", created_by: ctx.user.id });
   if (error?.code === "23505") return { error: "Cette opération a déjà été traitée." }; if (error) return { error: error.message };
   await logAudit(s, { agencyId: ctx.membership.agencyId, branchId: p.data.branch_id, actorId: ctx.user.id, action: `DEPOSIT_${p.data.transaction_type}`, entityType: "deposit", entityId: dep.id, metadata: { amount: p.data.amount, settlesBalance: p.data.transaction_type === "DEDUCTION", idempotencyKey: p.data.idempotency_key } });
-  if (dep.contract_id) revalidatePath(`/agency/contracts/${dep.contract_id}`);
-  revalidatePath("/agency/operations");
+  if (options?.revalidate !== false) {
+    if (dep.contract_id) revalidatePath(`/agency/contracts/${dep.contract_id}`);
+    revalidatePath("/agency/operations");
+  }
   return { success: true };
 }
 

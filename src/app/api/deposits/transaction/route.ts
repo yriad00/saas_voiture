@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (origin && origin !== new URL(request.url).origin) {
       return NextResponse.json({ error: "Requête non autorisée." }, { status: 403, headers: { "cache-control": "no-store" } });
     }
-    const result = await recordDepositTransaction({}, await request.formData());
+    const result = await recordDepositTransaction({}, await request.formData(), { revalidate: false });
     return NextResponse.json(result, {
       status: result?.error ? 400 : 200,
       headers: { "cache-control": "no-store" },
