@@ -1,10 +1,28 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import fs from "node:fs";
+import path from "node:path";
 import stagingTarget from "../../scripts/staging-target.cjs";
 
 const { assertStagingTarget } = stagingTarget;
 
+function readTestEnv() {
+  const values: Record<string, string> = {};
+  const filePath = path.join(process.cwd(), ".env.test.local");
+  if (!fs.existsSync(filePath)) return values;
+  for (const raw of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = line.match(/^([^=]+)=(.*)$/);
+    if (match) values[match[1]] = match[2].replace(/^"|"$/g, "");
+  }
+  return values;
+}
+
+const testEnv = readTestEnv();
+const stagingValue = (key: string) => process.env[key] || testEnv[key] || "";
+
 function requireStagingUrl() {
-  const raw = process.env.FLEETHUB_TEST_SUPABASE_URL;
+  const raw = stagingValue("FLEETHUB_TEST_SUPABASE_URL");
   if (!raw) throw new Error("FLEETHUB_TEST_SUPABASE_URL is required for browser assertions.");
   return assertStagingTarget(raw, "FLEETHUB_TEST_SUPABASE_URL").toString().replace(/\/$/, "");
 }
@@ -13,7 +31,7 @@ let client: SupabaseClient | undefined;
 
 export function stagingDb() {
   if (client) return client;
-  const key = process.env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
+  const key = stagingValue("FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY");
   if (!key) throw new Error("FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY is required in the test process only.");
   client = createClient(requireStagingUrl(), key, { auth: { autoRefreshToken: false, persistSession: false } });
   return client;
