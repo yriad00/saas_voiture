@@ -6,6 +6,7 @@ import { requireAgencyPermission } from "@/lib/auth/session";
 import { logAudit } from "@/lib/services/audit";
 import { createClient } from "@/lib/supabase/server";
 import { consumeRateLimit } from "@/lib/services/rate-limit";
+import { measurePerf, startPerf } from "@/lib/perf";
 
 const schema = z.object({
   contract_id: z.string().uuid(),
@@ -19,6 +20,8 @@ export async function uploadContractPhoto(
   _prev: PhotoFormState,
   formData: FormData,
 ): Promise<PhotoFormState> {
+  const finish = startPerf("uploadContractPhoto");
+  try {
   const ctx = await requireAgencyPermission("contracts.update", ["AGENCY_OWNER", "MANAGER", "AGENT"]);
   const parsed = schema.safeParse({
     contract_id: formData.get("contract_id"),
@@ -34,7 +37,7 @@ export async function uploadContractPhoto(
   if (fileValue.size > 10 * 1024 * 1024) return { error: "La photo ne doit pas dépasser 10 Mo." };
 
   const supabase = await createClient();
-  if (!(await consumeRateLimit(supabase, "contract_photos.upload", 60, 3600))) {
+  if (!(await measurePerf("photo.rateLimit", () => consumeRateLimit(supabase, "contract_photos.upload", 60, 3600)))) {
     return { error: "Trop de photos téléversées. Réessayez plus tard." };
   }
   const { data: contract } = await supabase
@@ -62,14 +65,14 @@ export async function uploadContractPhoto(
 
   const safeName = fileValue.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-80) || "photo";
   const storagePath = `${ctx.membership.agencyId}/${parsed.data.contract_id}/${parsed.data.inspection_type}/${crypto.randomUUID()}-${safeName}`;
-  const { error: uploadError } = await supabase.storage.from("contract-photos").upload(storagePath, fileValue, {
+  const { error: uploadError } = await measurePerf("photo.storage.upload", () => supabase.storage.from("contract-photos").upload(storagePath, fileValue, {
     contentType: fileValue.type,
     cacheControl: "3600",
     upsert: false,
-  });
+  }));
   if (uploadError) return { error: uploadError.message };
 
-  const { data: photo, error: insertError } = await supabase.from("contract_inspection_photos").insert({
+  const { data: photo, error: insertError } = await measurePerf("photo.metadata.insert", async () => supabase.from("contract_inspection_photos").insert({
     agency_id: ctx.membership.agencyId,
     branch_id: photoBranchId,
     contract_id: parsed.data.contract_id,
@@ -80,23 +83,26 @@ export async function uploadContractPhoto(
     content_type: fileValue.type,
     size_bytes: fileValue.size,
     created_by: ctx.user.id,
-  }).select("id").single();
+  }).select("id").single());
   if (insertError || !photo) {
     await supabase.storage.from("contract-photos").remove([storagePath]);
     return { error: insertError?.message ?? "Impossible d'enregistrer la photo." };
   }
 
-  await logAudit(supabase, {
+  await measurePerf("photo.audit", () => logAudit(supabase, {
     agencyId: ctx.membership.agencyId,
     actorId: ctx.user.id,
     action: "CONTRACT_PHOTO_UPLOADED",
     entityType: "contract",
     entityId: parsed.data.contract_id,
     metadata: { inspectionType: parsed.data.inspection_type, photoType: parsed.data.photo_type, photoId: photo.id, contentType: fileValue.type, sizeBytes: fileValue.size },
-  });
+  }));
   // Keep the photo form mounted so a slow hosted Storage response cannot
   // remount the six upload controls and lose their local pending/success
   // state. The persisted row and Storage object are authoritative; the
   // dossier is refreshed naturally on the next navigation/reload.
   return { success: true };
+  } finally {
+    finish();
+  }
 }
