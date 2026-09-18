@@ -88,7 +88,6 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     { data: checkout },
     { data: checkin },
     { data: signatures },
-    { data: returnCharges },
     { data: rentalUpdates },
     { data: extensions },
   ] = await measurePerf("contract.page.dossierPanels", () => Promise.all([
@@ -97,7 +96,6 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     supabase.from("contract_checkouts").select("*").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).maybeSingle(),
     (supabase as any).from("contract_checkins").select("*").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).maybeSingle(),
     (supabase as any).from("contract_signatures").select("id,signer_type,signer_name,signature_data,signed_at,contract_version").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).order("signed_at", { ascending: false }),
-    (supabase as any).from("return_charges").select("id,branch_id,charge_type,quantity,unit_price,amount,reason,source,created_at").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).order("created_at", { ascending: false }),
     supabase.from("active_rental_updates").select("id, event_type, occurred_at, mileage, fuel_level, location, notes").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).order("occurred_at", { ascending: false }).limit(20),
     supabase.from("rental_extensions").select("id, previous_end_date, new_end_date, added_days, extra_amount, reason, created_at").eq("contract_id", id).eq("agency_id", ctx.membership.agencyId).order("created_at", { ascending: false }),
   ]));
@@ -328,7 +326,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           {canWrite && c.status === "ACTIVE" && !checkout && <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">Validez d’abord le check-out pour ouvrir le retour.</p>}
           {checkin?.status === "FINALIZED" && <div className="rounded-md border bg-muted/20 p-3 text-sm">Le retour est enregistré. Vérifiez les charges ci-dessous avant la clôture du contrat.</div>}
           {c.customer.phone && <WhatsAppLink phone={c.customer.whatsapp ?? c.customer.phone} message={lateReturn ? `Bonjour ${c.customer.name}, le retour du véhicule ${c.vehicle.plate} est en retard. Merci de nous contacter.` : `Bonjour ${c.customer.name}, rappel : merci de prévoir la restitution du véhicule ${c.vehicle.plate}.`} />}
-            {(returnCharges ?? []).length > 0 && <div className="space-y-2">{(returnCharges ?? []).map((charge: any) => <div key={charge.id} className="rounded-md border p-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span>{charge.reason}</span><strong>{formatCurrency(Number(charge.amount))}</strong></div><p className="text-xs text-muted-foreground">{chargeTypeLabel(charge.charge_type)} · {Number(charge.quantity)} × {formatCurrency(Number(charge.unit_price))} · {chargeSourceLabel(charge.source)}</p>{canWrite && (charge.branch_id ?? c.branch_id) && ["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey) && <ReturnChargeOverride chargeId={charge.id} branchId={charge.branch_id ?? c.branch_id} amount={Number(charge.amount)} />}</div>)}</div>}
+            {(c.returnCharges ?? []).length > 0 && <div className="space-y-2">{(c.returnCharges ?? []).map((charge: any) => <div key={charge.id} className="rounded-md border p-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span>{charge.reason}</span><strong>{formatCurrency(Number(charge.amount))}</strong></div><p className="text-xs text-muted-foreground">{chargeTypeLabel(charge.charge_type)} · {Number(charge.quantity)} × {formatCurrency(Number(charge.unit_price))} · {chargeSourceLabel(charge.source)}</p>{canWrite && (charge.branch_id ?? c.branch_id) && ["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey) && <ReturnChargeOverride chargeId={charge.id} branchId={charge.branch_id ?? c.branch_id} amount={Number(charge.amount)} />}</div>)}</div>}
         </CardContent>
       </Card>
 

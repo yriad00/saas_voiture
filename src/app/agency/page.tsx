@@ -26,7 +26,7 @@ export default async function AgencyDashboard() {
       .eq("agency_id", ctx.membership.agencyId)
       .order("created_at", { ascending: false })
       .limit(5),
-    getDashboardData(ctx.membership.agencyId),
+    getDashboardData(ctx.membership.agencyId, ctx.membership.branchId),
   ]);
   const metrics = dashboardData.metrics;
 

@@ -80,6 +80,8 @@ export async function getContractFinancials(
       | Promise<Record<string, unknown> | null>;
     depositTransactions?: Array<{ transaction_type: string; amount: number | string; settles_balance?: boolean }>
       | Promise<Array<{ transaction_type: string; amount: number | string; settles_balance?: boolean }>>;
+    returnCharges?: Array<{ amount: number | string }>
+      | Promise<Array<{ amount: number | string }>>;
   },
 ): Promise<ReturnType<typeof calculateContractFinancials> | null> {
   const contractQuery = prefetched && "contract" in prefetched
@@ -101,11 +103,14 @@ export async function getContractFinancials(
         // reliable and previously hid deposit settlements from the balance.
         supabase.from("deposits").select("id,required_amount,received_amount,held_amount,deducted_amount,refunded_amount").eq("contract_id", contractId).eq("agency_id", agencyId).maybeSingle(),
       );
+  const chargesQuery = prefetched && "returnCharges" in prefetched
+    ? Promise.resolve(prefetched.returnCharges ?? []).then((data) => ({ data }))
+    : measurePerf("contract.financials.returnCharges", async () =>
+        supabase.from("return_charges").select("amount").eq("contract_id", contractId).eq("agency_id", agencyId),
+      );
   const [{ data: contract }, { data: charges }, { data: financialPayments }, { data: deposit }] = await Promise.all([
     contractQuery,
-    measurePerf("contract.financials.returnCharges", async () =>
-      supabase.from("return_charges").select("amount").eq("contract_id", contractId).eq("agency_id", agencyId),
-    ),
+    chargesQuery,
     paymentsQuery,
     depositQuery,
   ]);

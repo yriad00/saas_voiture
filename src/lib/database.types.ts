@@ -2164,6 +2164,14 @@ export type Database = {
         Returns: Json
       }
       user_has_permission: { Args: { p_agency_id: string; p_permission: string }; Returns: boolean }
+      get_today_overview: {
+        Args: { p_agency_id: string; p_branch_id?: string | null; p_current_date?: string }
+        Returns: Json
+      }
+      get_dashboard_summary: {
+        Args: { p_agency_id: string; p_branch_id?: string | null; p_current_date?: string }
+        Returns: Json
+      }
     }
     Enums: {
       agency_status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "TRIAL" | "EXPIRED"

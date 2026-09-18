@@ -8,6 +8,17 @@ export type ContractRow = Tables<"contracts">;
 export type InvoiceRow = Tables<"invoices">;
 export type ContractInspectionRow = Tables<"contract_inspections">;
 export type ContractPhotoRow = Tables<"contract_inspection_photos">;
+export type ContractReturnCharge = {
+  id: string;
+  branch_id: string | null;
+  charge_type: string;
+  quantity: number | string;
+  unit_price: number | string;
+  amount: number | string;
+  reason: string;
+  source: string;
+  created_at: string;
+};
 
 export type ContractListItem = ContractRow & {
   customerName: string;
@@ -44,6 +55,7 @@ export type ContractDetail = ContractRow & {
   invoices: InvoiceRow[];
   inspections: ContractInspectionRow[];
   photos: Array<ContractPhotoRow & { signedUrl: string | null }>;
+  returnCharges: ContractReturnCharge[];
   deposit: { id: string; branch_id: string | null; required_amount: number; received_amount: number; held_amount: number; deducted_amount: number; refunded_amount: number; status: string; payment_method?: string | null; cheque_status?: string | null } | null;
   paidTotal: number;
   rentalPaidTotal: number;
@@ -94,10 +106,24 @@ export async function getContract(id: string, agencyId: string): Promise<Contrac
   const depositRow = depositQuery.then(({ data: depositData }) =>
     depositData as ContractDetail["deposit"],
   );
+  const returnChargesQuery = measurePerf("contract.returnCharges", async () =>
+    // Generated database types predate this legacy table; keep the cast narrow.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("return_charges")
+      .select("id,branch_id,charge_type,quantity,unit_price,amount,reason,source,created_at")
+      .eq("contract_id", id)
+      .eq("agency_id", agencyId)
+      .order("created_at", { ascending: false }),
+  );
+  const returnChargesRows = returnChargesQuery.then(({ data: chargeData }) =>
+    (chargeData ?? []) as unknown as ContractReturnCharge[],
+  );
   const financialsQuery = measurePerf("contract.financials", () => getContractFinancials(supabase, agencyId, id, {
     contract: data as unknown as Record<string, unknown>,
     payments: paymentRows,
     deposit: depositRow as Promise<Record<string, unknown> | null>,
+    returnCharges: returnChargesRows,
   }));
   const [
     { data: payments },
@@ -105,6 +131,7 @@ export async function getContract(id: string, agencyId: string): Promise<Contrac
     { data: inspections },
     { data: photos },
     { data: deposit },
+    { data: returnCharges },
     financials,
   ] = await Promise.all([
     paymentsQuery,
@@ -133,6 +160,7 @@ export async function getContract(id: string, agencyId: string): Promise<Contrac
         .order("created_at", { ascending: false }),
     ),
     depositQuery,
+    returnChargesQuery,
     // Reuse the primary contract row and payment query above. The financial
     // service still fetches its own charges/deposit under the same RLS scope.
     financialsQuery,
@@ -161,6 +189,7 @@ export async function getContract(id: string, agencyId: string): Promise<Contrac
     invoices: invoices ?? [],
     inspections: inspections ?? [],
     photos: photosWithUrls,
+    returnCharges: (returnCharges ?? []) as unknown as ContractReturnCharge[],
     deposit: deposit ?? null,
     paidTotal: totals.paidTotal,
     rentalPaidTotal: totals.rentalPaidTotal,
