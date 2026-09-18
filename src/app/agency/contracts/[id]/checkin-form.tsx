@@ -1,25 +1,45 @@
 "use client";
-import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
-import { saveCheckin, type CheckinState } from "./checkin-actions";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { CheckinState } from "./checkin-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { SignaturePad } from "./signature-pad";
 import { PhotoForm } from "./photo-form";
 import { toMoroccoDateTimeLocal } from "@/lib/morocco-time";
 
-function Submit({ label, hydrated }: { label: string; hydrated: boolean }) { const { pending } = useFormStatus(); return <Button type="submit" disabled={!hydrated || pending}>{pending ? "Enregistrement…" : label}</Button>; }
+function Submit({ label, hydrated, pending }: { label: string; hydrated: boolean; pending: boolean }) { return <Button type="submit" disabled={!hydrated || pending}>{pending ? "Enregistrement…" : label}</Button>; }
 
 export function CheckinForm({ contractId, branchId, branches = [], showReturnPhotos = false }: { contractId: string; branchId: string; branches?: Array<{ id: string; name: string }>; showReturnPhotos?: boolean }) {
-  const [state, action] = useActionState<CheckinState, FormData>(saveCheckin, {});
+  const router = useRouter();
+  const [state, setState] = useState<CheckinState>({});
+  const [pending, setPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setHydrated(true), 0);
     return () => window.clearTimeout(timer);
   }, []);
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!hydrated || pending) return;
+    setState((current) => ({ review: current.review }));
+    setPending(true);
+    void fetch("/api/contracts/checkin", { method: "POST", body: new FormData(event.currentTarget), credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        const next = await response.json().catch(() => ({})) as CheckinState;
+        if (!response.ok) {
+          setState((current) => ({ ...next, review: next.review ?? current.review }));
+          return;
+        }
+        setState(next);
+        if (next.success) router.refresh();
+      })
+      .catch(() => setState((current) => ({ error: "Impossible d’enregistrer le retour. Réessayez.", review: current.review })))
+      .finally(() => setPending(false));
+  };
   const draft = state.review?.draft;
   const value = (key: string, fallback = "") => String(draft?.[key] ?? fallback);
-  return <div className="space-y-4"><form action={action} className="space-y-3 rounded-md border border-dashed p-4">
+  return <div className="space-y-4"><form onSubmit={submit} className="space-y-3 rounded-md border border-dashed p-4">
     <input type="text" className="hidden" name="contract_id" value={contractId} readOnly />
     {state.review ? <input type="hidden" name="branch_id" value={value("branch_id", branchId)}  readOnly /> : branches.length > 1 ? <div><Label htmlFor="return-branch">Agence de retour</Label><select id="return-branch" name="branch_id" defaultValue={branchId} className="h-10 w-full rounded-md border bg-background px-3 text-sm">{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></div> : <input type="hidden" name="branch_id" value={branchId}  readOnly />}
     {state.review ? <>
@@ -34,6 +54,6 @@ export function CheckinForm({ contractId, branchId, branches = [], showReturnPho
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><Label htmlFor="exterior">État extérieur</Label><Textarea id="exterior" name="exterior_condition" rows={3}/></div><div><Label htmlFor="interior">État intérieur / notes</Label><Textarea id="interior" name="interior_condition" rows={3}/></div></div><input type="hidden" className="hidden" name="finalize" defaultValue="false" />
       <div><Label>Signature client au retour</Label><SignaturePad required /></div>
     </>}
-    {state.error && <p className="text-sm text-destructive">{state.error}</p>}<Submit hydrated={hydrated} label={state.review ? "Finaliser le retour" : "Enregistrer et revoir"}/>
+    {state.error && <p className="text-sm text-destructive">{state.error}</p>}<Submit hydrated={hydrated} pending={pending} label={state.review ? "Finaliser le retour" : "Enregistrer et revoir"}/>
   </form>{(state.review || showReturnPhotos) && <div className="rounded-md border border-dashed p-3"><p className="mb-3 text-sm font-medium">Photos du retour</p><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{([['FRONT','Avant'],['REAR','Arrière'],['LEFT','Côté gauche'],['RIGHT','Côté droit'],['INTERIOR','Intérieur'],['DASHBOARD','Tableau de bord']] as const).map(([value, label]) => <div key={value} className="space-y-1"><p className="text-xs font-medium text-muted-foreground">{label}</p><PhotoForm contractId={contractId} inspectionType="RETURN" photoType={value} /></div>)}</div></div>}</div>;
 }
