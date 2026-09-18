@@ -25,7 +25,7 @@ const schema = z.object({
 
 export type CheckinState = { error?: string; success?: boolean; review?: { lateDays: number; lateHours: number; drivenMileage: number; extraMileage: number; fuelDelta: number; mileageRuleNeedsReview: boolean; charges: number; draft?: Record<string, unknown> } };
 
-export async function saveCheckin(_prev: CheckinState, formData: FormData): Promise<CheckinState> {
+export async function saveCheckin(_prev: CheckinState, formData: FormData, options?: { revalidate?: boolean }): Promise<CheckinState> {
   const endPerf = startPerf("saveCheckin");
   const ctx = await requireAgencyPermission("contracts.update", ["AGENCY_OWNER", "MANAGER", "AGENT"]);
   const parsed = schema.safeParse(Object.fromEntries(formData));
@@ -123,7 +123,7 @@ export async function saveCheckin(_prev: CheckinState, formData: FormData): Prom
     if (finalizeError) return reject("Impossible de finaliser le retour. Vérifiez les photos et réessayez.", { ...facts, charges: prices.reduce((s, row) => s + row.amount, 0), draft: d });
   }
   await logAudit(supabase, { agencyId: ctx.membership.agencyId, branchId: d.branch_id, actorId: ctx.user.id, action: d.finalize ? "CONTRACT_CHECKIN_FINALIZED" : "CONTRACT_CHECKIN_REVIEWED", entityType: "contract_checkin", entityId: saved.id, metadata: { contractId: d.contract_id, facts } });
-  revalidatePath(`/agency/contracts/${d.contract_id}`);
+  if (options?.revalidate !== false) revalidatePath(`/agency/contracts/${d.contract_id}`);
   endPerf();
   return d.finalize ? { success: true } : { review: { ...facts, charges: prices.reduce((s, row) => s + row.amount, 0), draft: d } };
 }
