@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { CONTRACT_STATUS, PAYMENT_METHOD, PAYMENT_TYPE, PAYMENT_STATUS } from "@/lib/labels";
+import { PAYMENT_METHOD, PAYMENT_TYPE, PAYMENT_STATUS } from "@/lib/labels";
 import { WhatsAppLink } from "@/components/whatsapp-link";
 import { ContractPrintDocument } from "./contract-print-document";
 import { ParticipantForm } from "./participant-form";
@@ -34,10 +34,6 @@ import { EarlyReturnForm } from "./early-return-form";
 import { measurePerf } from "@/lib/perf";
 
 type SecondaryProps = { id: string; agencyId: string; ctx: any };
-
-function fuel(level: number | null) {
-  return level === null ? "—" : `${level}/8`;
-}
 
 function depositStatusLabel(status: string) {
   return ({ RECEIVED: "Reçue", HELD: "Détenue", PARTIALLY_DEDUCTED: "Partiellement déduite", PARTIALLY_REFUNDED: "Partiellement remboursée", REFUNDED: "Remboursée", CLOSED: "Clôturée" } as Record<string, string>)[status] ?? "À traiter";
@@ -98,6 +94,9 @@ export async function ContractSecondarySections({ id, agencyId, ctx }: Secondary
   const canPerformReturnHere = !ctx.membership.branchId || ctx.membership.branchId === returnBranchId;
   const balance = c.financials.amountDue;
   const expectedReturnAt = (c as any).end_at ?? `${c.end_date}T00:00:00.000Z`;
+  // The current server render timestamp is intentionally evaluated once for
+  // this server-only section; it is not a client state value.
+  // eslint-disable-next-line react-hooks/purity
   const lateReturn = c.status === "ACTIVE" && new Date(expectedReturnAt).getTime() < Date.now();
   const pickupInspection = c.inspections.find((inspection) => inspection.inspection_type === "PICKUP");
   const returnInspection = c.inspections.find((inspection) => inspection.inspection_type === "RETURN");

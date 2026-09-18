@@ -98,14 +98,28 @@ export async function getContractCritical(id: string, agencyId: string): Promise
   const v = data.vehicles as unknown as ContractDetail["vehicle"] & { brand?: string; model?: string; license_plate?: string };
   const resv = data.reservations as unknown as { reference: string; pickup_location: string | null; return_location: string | null } | null;
   const paymentsQuery = measurePerf("contract.critical.payments", async () => supabase.from("payments").select("amount,type,status").eq("contract_id", id).eq("agency_id", agencyId));
-  const depositQuery = measurePerf("contract.critical.deposit", async () => (supabase as any).from("deposits").select("id,branch_id,required_amount,received_amount,held_amount,deducted_amount,refunded_amount,status,payment_method,cheque_status").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
-  const chargesQuery = measurePerf("contract.critical.returnCharges", async () => (supabase as any).from("return_charges").select("amount").eq("contract_id", id).eq("agency_id", agencyId));
+  const depositQuery = measurePerf("contract.critical.deposit", async () => {
+    // Compatibility cast for tables not yet present in generated database types.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (supabase as any).from("deposits").select("id,branch_id,required_amount,received_amount,held_amount,deducted_amount,refunded_amount,status,payment_method,cheque_status").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle();
+  });
+  const chargesQuery = measurePerf("contract.critical.returnCharges", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (supabase as any).from("return_charges").select("amount").eq("contract_id", id).eq("agency_id", agencyId);
+  });
   const preparationQuery = measurePerf("contract.critical.preparation", async () => supabase.from("vehicle_preparations").select("status").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
   const checkoutQuery = measurePerf("contract.critical.checkout", async () => supabase.from("contract_checkouts").select("id,checkout_at,mileage,fuel_level").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
-  const checkinQuery = measurePerf("contract.critical.checkin", async () => (supabase as any).from("contract_checkins").select("id,status,actual_return_at,return_mileage,fuel_level").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
+  const checkinQuery = measurePerf("contract.critical.checkin", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (supabase as any).from("contract_checkins").select("id,status,actual_return_at,return_mileage,fuel_level").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle();
+  });
   const [{ data: payments }, { data: deposit }, { data: charges }, { data: preparation }, { data: checkout }, { data: checkin }] = await Promise.all([paymentsQuery, depositQuery, chargesQuery, preparationQuery, checkoutQuery, checkinQuery]);
-  const depositTransactions = deposit?.id
-    ? await measurePerf("contract.critical.depositTransactions", () => (supabase as any).from("deposit_transactions").select("transaction_type,amount,settles_balance,deposit_id").eq("agency_id", agencyId).eq("deposit_id", deposit.id)).then((result: any) => result.data ?? [])
+  type DepositTransactionRow = { transaction_type: string; amount: number | string; settles_balance?: boolean; deposit_id?: string };
+  const depositTransactions: DepositTransactionRow[] = deposit?.id
+    ? await measurePerf<{ data: DepositTransactionRow[] | null }>("contract.critical.depositTransactions", () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (supabase as any).from("deposit_transactions").select("transaction_type,amount,settles_balance,deposit_id").eq("agency_id", agencyId).eq("deposit_id", deposit.id);
+      }).then((result) => result.data ?? [])
     : [];
   const financials = await measurePerf("contract.critical.financials", () => getContractFinancials(supabase, agencyId, id, {
     contract: data as unknown as Record<string, unknown>,

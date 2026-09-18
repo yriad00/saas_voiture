@@ -20,13 +20,21 @@ test("hosted staging route performance baseline", async ({ page }) => {
     ["Operations", "/agency/operations"],
   ] as const;
   const measurements: Record<string, number> = {};
+  let contractCriticalMs: number | null = null;
+  let contractFullMs: number | null = null;
   for (const [name, route] of routes) {
     const started = Date.now();
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await expect(page.locator("main")).toBeVisible();
+    if (name === "Contract detail") {
+      await expect(page.getByTestId("contract-critical")).toBeVisible();
+      contractCriticalMs = Date.now() - started;
+      await expect(page.locator("#finances")).toBeVisible();
+      contractFullMs = Date.now() - started;
+    }
     measurements[name] = Date.now() - started;
   }
-  const report = { baseURL: process.env.FLEETHUB_HOSTED_URL ?? process.env.FLEETHUB_LOCAL_URL ?? null, measurements };
+  const report = { baseURL: process.env.FLEETHUB_HOSTED_URL ?? process.env.FLEETHUB_LOCAL_URL ?? null, measurements, contractCriticalMs, contractFullMs };
   console.log(`E2E_PERFORMANCE ${JSON.stringify(report)}`);
   fs.writeFileSync(path.join(process.cwd(), "test-results", "hosted-performance.json"), JSON.stringify(report, null, 2));
 });
