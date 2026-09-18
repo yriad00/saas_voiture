@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { Loader2, Plus, UserRound } from "lucide-react";
-import { createReservation, type ReservationFormState } from "./actions";
+import type { ReservationFormState } from "./actions";
 import { createQuickCustomer, type QuickCustomerFormState } from "@/app/agency/customers/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +26,7 @@ function Field({ label, name, error, children }: { label: string; name: string; 
   );
 }
 
-function Submit() {
-  const { pending } = useFormStatus();
+function Submit({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" disabled={pending}>
       {pending && <Loader2 className="animate-spin" />}
@@ -65,7 +64,8 @@ export function ReservationForm({
   branches?: BranchOption[];
   defaultCustomerId?: string;
 }) {
-  const [state, action] = useActionState<ReservationFormState, FormData>(createReservation, {});
+  const [state, setState] = useState<ReservationFormState>({});
+  const [pending, setPending] = useState(false);
   const [quickState, quickAction] = useActionState<QuickCustomerFormState, FormData>(createQuickCustomer, {});
   const fe = state.fieldErrors ?? {};
 
@@ -101,6 +101,25 @@ export function ReservationForm({
     if (v) setDailyRate(v.daily_rate);
   };
 
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pending) return;
+    setState({});
+    setPending(true);
+    void fetch("/api/reservations", {
+      method: "POST",
+      body: new FormData(event.currentTarget),
+      credentials: "same-origin",
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const next = await response.json().catch(() => ({}));
+        setState(response.ok ? next : { error: next.error ?? "Impossible de créer la réservation. Réessayez." });
+      })
+      .catch(() => setState({ error: "Impossible de créer la réservation. Réessayez." }))
+      .finally(() => setPending(false));
+  };
+
   if (state.success) {
     return (
       <Card>
@@ -126,7 +145,7 @@ export function ReservationForm({
   }
 
   return (
-    <form action={action} className="space-y-6">
+    <form onSubmit={submit} className="space-y-6">
       <Card>
         <CardHeader><CardTitle className="text-base">Client & véhicule</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -246,7 +265,7 @@ export function ReservationForm({
       )}
 
       <div className="flex items-center gap-3">
-        <Submit />
+        <Submit pending={pending} />
         <Button asChild variant="ghost"><Link href="/agency/reservations">Annuler</Link></Button>
       </div>
     </form>
