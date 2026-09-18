@@ -31,29 +31,33 @@ export async function saveCheckin(_prev: CheckinState, formData: FormData): Prom
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Valeurs invalides." };
   const d = parsed.data;
+  const reject = (message: string, review?: CheckinState["review"]): CheckinState => {
+    console.warn(`[checkin] rejected ${d.contract_id}: ${message}`);
+    return review ? { error: message, review } : { error: message };
+  };
   let actualReturnAt: string;
   try { actualReturnAt = moroccoDateTimeLocalToIso(d.actual_return_at); }
-  catch { return { error: "Date et heure de retour invalides pour le Maroc." }; }
+  catch { return reject("Date et heure de retour invalides pour le Maroc."); }
   const supabase = await createClient();
   const [{ data: contract }, { data: existing }] = await Promise.all([
     (supabase as any).from("contracts").select("id, agency_id, branch_id, return_branch_id, vehicle_id, reservation_id, status, start_mileage, end_date, end_at, daily_rate, fuel_level_start, mileage_policy, mileage_allowance, extra_mileage_rate, fuel_shortfall_rate, cleaning_fee").eq("id", d.contract_id).eq("agency_id", ctx.membership.agencyId).maybeSingle(),
     (supabase as any).from("contract_checkins").select("id,status,signature_data").eq("contract_id", d.contract_id).eq("agency_id", ctx.membership.agencyId).maybeSingle(),
   ]);
-  if (!contract) return { error: "Contrat introuvable." };
-  if (contract.status !== "ACTIVE") return { error: "Seule une location active peut être restituée." };
-  if (ctx.membership.branchId && ctx.membership.branchId !== d.branch_id) return { error: "Vous ne pouvez pas enregistrer un retour dans une autre agence." };
-  if (contract.return_branch_id && contract.return_branch_id !== d.branch_id && !["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey)) return { error: "Le retour est prévu dans une autre agence. Un manager doit valider ce changement." };
-  if (existing?.status === "FINALIZED") return { error: "Le retour est déjà finalisé." };
+  if (!contract) return reject("Contrat introuvable.");
+  if (contract.status !== "ACTIVE") return reject("Seule une location active peut être restituée.");
+  if (ctx.membership.branchId && ctx.membership.branchId !== d.branch_id) return reject("Vous ne pouvez pas enregistrer un retour dans une autre agence.");
+  if (contract.return_branch_id && contract.return_branch_id !== d.branch_id && !["AGENCY_OWNER", "MANAGER"].includes(ctx.membership.roleKey)) return reject("Le retour est prévu dans une autre agence. Un manager doit valider ce changement.");
+  if (existing?.status === "FINALIZED") return reject("Le retour est déjà finalisé.");
   // A previous interrupted attempt may have finalized the inspection while
   // leaving the check-in in REVIEW. It is safe to resume that attempt; only a
   // finalized check-in itself is immutable.
-  if (!d.signature_data && !existing?.signature_data) return { error: "La signature client est requise pour le retour." };
+  if (!d.signature_data && !existing?.signature_data) return reject("La signature client est requise pour le retour.");
   const { data: checkout } = await supabase.from("contract_checkouts").select("id,mileage").eq("contract_id", d.contract_id).eq("agency_id", ctx.membership.agencyId).maybeSingle();
-  if (!checkout) return { error: "Effectuez d’abord le check-out du véhicule." };
-  if (contract.start_mileage !== null && d.return_mileage < contract.start_mileage) return { error: "Le kilométrage de retour ne peut pas être inférieur au kilométrage de départ." };
-  if (checkout.mileage !== null && d.return_mileage < checkout.mileage) return { error: "Le kilométrage de retour ne peut pas être inférieur au kilométrage du check-out." };
+  if (!checkout) return reject("Effectuez d’abord le check-out du véhicule.");
+  if (contract.start_mileage !== null && d.return_mileage < contract.start_mileage) return reject("Le kilométrage de retour ne peut pas être inférieur au kilométrage de départ.");
+  if (checkout.mileage !== null && d.return_mileage < checkout.mileage) return reject("Le kilométrage de retour ne peut pas être inférieur au kilométrage du check-out.");
   const { data: branch } = await supabase.from("branches").select("id").eq("id", d.branch_id).eq("agency_id", ctx.membership.agencyId).maybeSingle();
-  if (!branch) return { error: "Agence de retour non autorisée." };
+  if (!branch) return reject("Agence de retour non autorisée.");
   const mileagePolicy = ["UNLIMITED", "LIMITED"].includes(String(contract.mileage_policy)) ? contract.mileage_policy : "UNSPECIFIED";
   const facts = calculateReturnFacts({
     checkoutMileage: checkout.mileage ?? contract.start_mileage,
@@ -75,26 +79,26 @@ export async function saveCheckin(_prev: CheckinState, formData: FormData): Prom
     cleaningFee: contract.cleaning_fee === null ? undefined : Number(contract.cleaning_fee),
   }, d.cleanliness);
   const status = "REVIEW";
-  if (d.finalize && !d.review_confirmed) return { error: "Confirmez la revue du retour avant finalisation.", review: _prev.review };
+  if (d.finalize && !d.review_confirmed) return reject("Confirmez la revue du retour avant finalisation.", _prev.review);
   if (d.finalize) {
     const { data: photos, error: photoError } = await supabase.from("contract_inspection_photos")
       .select("photo_type")
       .eq("agency_id", ctx.membership.agencyId)
       .eq("contract_id", d.contract_id)
       .eq("inspection_type", "RETURN");
-    if (photoError) return { error: "Impossible de vérifier les photos de retour. Réessayez avant la finalisation.", review: _prev.review };
+    if (photoError) return reject("Impossible de vérifier les photos de retour. Réessayez avant la finalisation.", _prev.review);
     const uploaded = new Set((photos ?? []).map((photo) => photo.photo_type));
     const missing = requiredReturnPhotos.filter((type) => !uploaded.has(type));
-    if (missing.length) return { error: `Ajoutez les photos de retour manquantes : ${missing.map((type) => returnPhotoLabels[type]).join(", ")}.`, review: _prev.review };
+    if (missing.length) return reject(`Ajoutez les photos de retour manquantes : ${missing.map((type) => returnPhotoLabels[type]).join(", ")}.`, _prev.review);
   }
   const payload = { agency_id: ctx.membership.agencyId, branch_id: d.branch_id, contract_id: d.contract_id, vehicle_id: contract.vehicle_id, reservation_id: contract.reservation_id, actual_return_at: actualReturnAt, returned_by: ctx.user.id, return_mileage: d.return_mileage, fuel_level: d.fuel_level, cleanliness: d.cleanliness, exterior_condition: d.exterior_condition || null, interior_condition: d.interior_condition || null, missing_items: d.missing_items ? d.missing_items.split(",").map((v) => v.trim()).filter(Boolean) : [], notes: d.notes || null, signature_name: d.signature_name, signature_data: d.signature_data || null, status, finalized_at: null, finalized_by: null, updated_at: new Date().toISOString() };
   const { data: saved, error } = await (supabase as any).from("contract_checkins").upsert(payload, { onConflict: "contract_id" }).select("id").single();
-  if (error || !saved) return { error: error?.message ?? "Impossible d'enregistrer le retour." };
+  if (error || !saved) return reject(error?.message ?? "Impossible d'enregistrer le retour.");
   if (d.signature_data) {
     const { data: customerSignature } = await (supabase as any).from("contract_signatures").select("id").eq("contract_id", contract.id).eq("agency_id", ctx.membership.agencyId).eq("signer_type", "CUSTOMER").limit(1).maybeSingle();
     if (!customerSignature) {
       const signature = await recordContractSignature(supabase, { agencyId: ctx.membership.agencyId, branchId: d.branch_id, contractId: contract.id, signerType: "CUSTOMER", signerName: d.signature_name, signatureData: d.signature_data, actorId: ctx.user.id });
-      if (signature.error) return { error: signature.error };
+      if (signature.error) return reject(signature.error);
     }
   }
   if (d.finalize) {
@@ -117,7 +121,7 @@ export async function saveCheckin(_prev: CheckinState, formData: FormData): Prom
       p_signature_name: d.signature_name,
       p_signature_data: d.signature_data || existing?.signature_data || null,
     });
-    if (finalizeError) return { error: "Impossible de finaliser le retour. Vérifiez les photos et réessayez.", review: { ...facts, charges: prices.reduce((s, row) => s + row.amount, 0), draft: d } };
+    if (finalizeError) return reject("Impossible de finaliser le retour. Vérifiez les photos et réessayez.", { ...facts, charges: prices.reduce((s, row) => s + row.amount, 0), draft: d });
   }
   await logAudit(supabase, { agencyId: ctx.membership.agencyId, branchId: d.branch_id, actorId: ctx.user.id, action: d.finalize ? "CONTRACT_CHECKIN_FINALIZED" : "CONTRACT_CHECKIN_REVIEWED", entityType: "contract_checkin", entityId: saved.id, metadata: { contractId: d.contract_id, facts } });
   revalidatePath(`/agency/contracts/${d.contract_id}`);

@@ -95,7 +95,10 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("TRANSFER");
   await page.locator("#reference").fill("TEST_E2E-ADVANCE");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(/\/agency\/reservations\//, { timeout: 15_000 });
+  // Hosted Server Actions can take the measured cold transport window before
+  // the redirect is observable. Keep the browser redirect assertion, but do
+  // not classify a successful committed payment as a failure at 15 seconds.
+  await page.waitForURL(/\/agency\/reservations\//, { timeout: 60_000 });
   const reservationPayments = await rows("payments", { reservation_id: reservationId });
   expect(reservationPayments.some((payment) => Number(payment.amount) === 300 && payment.type === "RENTAL")).toBe(true);
 
@@ -164,7 +167,7 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("CARD");
   await page.locator("#reference").fill("TEST_E2E-CARD");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 15_000 });
+  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 60_000 });
 
   // Check-in is reviewed, photographed, and only then finalized.
   await page.goto(`/agency/contracts/${contractId}?after-payment=${Date.now()}`, { waitUntil: "domcontentloaded" });
@@ -241,7 +244,7 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("TRANSFER");
   await page.locator("#reference").fill("TEST_E2E-SOLDE");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 15_000 });
+  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 60_000 });
   // Request a fresh contract document after the redirect. A payment action
   // revalidates the contract route, but a browser reload can race that RSC
   // response and leave the payment form mounted in the test document.
