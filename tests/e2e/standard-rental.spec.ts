@@ -72,13 +72,12 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#return_location").fill("Casablanca — test staging");
   await page.locator("#deposit_amount").fill("3000");
   await page.locator("#advance_amount").fill("300");
-  await page.locator("#notes").fill("TEST_E2E standard rental");
+  const reservationMarker = `TEST_E2E standard rental ${Date.now()}`;
+  await page.locator("#notes").fill(reservationMarker);
   await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-  await expect(page.getByText("Réservation créée", { exact: true })).toBeVisible();
-  const reservationHref = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-  if (!reservationHref) throw new Error("Reservation detail link missing");
-  await page.goto(reservationHref, { waitUntil: "domcontentloaded" });
-  const reservationId = new URL(page.url()).pathname.split("/").pop()!;
+  await expect.poll(async () => (await one("reservations", { notes: reservationMarker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+  const reservationId = String((await one("reservations", { notes: reservationMarker }))?.id);
+  await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
   const reservation = await one("reservations", { id: reservationId });
   expect(reservation?.vehicle_id).toBe(vehicleId);
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordDepositTransaction } from "@/app/agency/operations/actions";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 
 export const runtime = "nodejs";
 
@@ -7,8 +8,7 @@ export const runtime = "nodejs";
  * existing action while using a reliable multipart transport on hosted pages. */
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return NextResponse.json({ error: "Requête non autorisée." }, { status: 403, headers: { "cache-control": "no-store" } });
     }
     const result = await recordDepositTransaction({}, await request.formData(), { revalidate: false });

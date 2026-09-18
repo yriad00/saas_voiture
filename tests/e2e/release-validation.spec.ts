@@ -62,7 +62,7 @@ async function openPhotoContract(page: Page) {
   await open(page, `/agency/contracts/${fixture.photoContract ?? fixture.activeContract}`);
 }
 
-async function fillReservation(page: Page, start: string, end: string, withVehicle = true) {
+async function fillReservation(page: Page, start: string, end: string, withVehicle = true, marker = `TEST_BROWSER — release validation ${Date.now()}`) {
   const customer = await page.locator("#customer_id option").nth(1).getAttribute("value");
   expect(customer).toBeTruthy();
   await page.locator("#customer_id").selectOption(customer!);
@@ -80,18 +80,18 @@ async function fillReservation(page: Page, start: string, end: string, withVehic
   await page.locator("#return_location").fill("Casablanca — test staging");
   await page.locator("#deposit_amount").fill("3000");
   await page.locator("#advance_amount").fill("300");
-  await page.locator("#notes").fill("TEST_BROWSER — release validation");
+  await page.locator("#notes").fill(marker);
+  return marker;
 }
 
 async function createReservationFromUi(page: Page, start: string, end: string) {
   await open(page, "/agency/reservations/new");
-  await fillReservation(page, start, end);
+  const marker = await fillReservation(page, start, end);
   await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-  await expectText(page, "Réservation créée");
-  const href = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-  expect(href).toMatch(/\/agency\/reservations\/[0-9a-f-]+$/i);
-  await page.goto(href!, { waitUntil: "domcontentloaded" });
-  return idFromUrl(page.url(), "reservations");
+  await expect.poll(async () => (await one("reservations", { notes: marker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+  const reservationId = String((await one("reservations", { notes: marker }))?.id);
+  await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
+  return reservationId;
 }
 
 test.describe("FleetHub release validation — hosted staging only", () => {
@@ -122,13 +122,11 @@ test.describe("FleetHub release validation — hosted staging only", () => {
   test("02 double booking is rejected by the UI/server workflow", async ({ page }) => {
     const { fixture } = readContext();
     await open(page, "/agency/reservations/new");
-    await fillReservation(page, "2099-01-05", "2099-01-08");
+    const marker = await fillReservation(page, "2099-01-05", "2099-01-08");
     await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-    await expectText(page, "Réservation créée");
-    const createdHref = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-    expect(createdHref).toMatch(/\/agency\/reservations\/[0-9a-f-]+$/i);
-    await page.goto(createdHref!, { waitUntil: "domcontentloaded" });
-    const reservationId = idFromUrl(page.url(), "reservations");
+    await expect.poll(async () => (await one("reservations", { notes: marker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+    const reservationId = String((await one("reservations", { notes: marker }))?.id);
+    await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
     const created = await one("reservations", { id: reservationId });
     expect(created?.id).toBe(reservationId);
     const vehicleId = String(created?.vehicle_id ?? "");
@@ -147,10 +145,10 @@ test.describe("FleetHub release validation — hosted staging only", () => {
     const contract = await one("contracts", { id: fixture.activeContract });
     expect(contract?.vehicle_id).toBeTruthy();
     await open(page, "/agency/reservations/new");
-    await fillReservation(page, "2099-09-01", "2099-09-03");
+    const marker = await fillReservation(page, "2099-09-01", "2099-09-03");
     await page.locator("#vehicle_id").selectOption(String(contract?.vehicle_id));
     await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-    await expectText(page, "Réservation créée");
+    await expect.poll(async () => (await one("reservations", { notes: marker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
     await openActiveContract(page);
     await openSection(page, "Prolonger cette location");
     await expect(page.locator("#extension_date")).toBeVisible();
@@ -165,13 +163,11 @@ test.describe("FleetHub release validation — hosted staging only", () => {
   test("04 category reservation works without an assigned vehicle", async ({ page }) => {
     const { fixture } = readContext();
     await open(page, "/agency/reservations/new");
-    await fillReservation(page, "2099-02-05", "2099-02-08", false);
+    const marker = await fillReservation(page, "2099-02-05", "2099-02-08", false);
     await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-    await expectText(page, "Réservation créée");
-    const createdHref = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-    expect(createdHref).toMatch(/\/agency\/reservations\/[0-9a-f-]+$/i);
-    await page.goto(createdHref!, { waitUntil: "domcontentloaded" });
-    const reservationId = idFromUrl(page.url(), "reservations");
+    await expect.poll(async () => (await one("reservations", { notes: marker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+    const reservationId = String((await one("reservations", { notes: marker }))?.id);
+    await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
     const created = await one("reservations", { id: reservationId });
     expect(created?.vehicle_id).toBeNull();
     expect(String(created?.vehicle_category ?? "")).toBe("Economique");
@@ -190,7 +186,7 @@ test.describe("FleetHub release validation — hosted staging only", () => {
     // observable. Verify the actual persisted result first, then reload the
     // dossier and assert the user-visible assigned-vehicle state.
     await expect.poll(async () => (await one("reservations", { id: reservationId }))?.vehicle_id ?? null, { timeout: 60_000, intervals: [1_000, 2_000, 5_000] }).toBe(targetVehicle);
-    await page.goto(createdHref!, { waitUntil: "domcontentloaded" });
+    await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Aucun véhicule attribué", { exact: true })).toHaveCount(0, { timeout: 30_000 });
     const assigned = await one("reservations", { id: reservationId });
     expect(assigned?.vehicle_id).toBe(targetVehicle);
@@ -338,7 +334,7 @@ test.describe("FleetHub release validation — hosted staging only", () => {
   test("12 one-way rental exposes separate pickup and return branches", async ({ page }) => {
     const { fixture } = readContext();
     await open(page, "/agency/reservations/new");
-    await fillReservation(page, "2099-04-05", "2099-04-08");
+    const marker = await fillReservation(page, "2099-04-05", "2099-04-08");
     await expect(page.locator("#pickup_branch_id")).toBeVisible();
     await expect(page.locator("#return_branch_id")).toBeVisible();
     await expect(page.locator("#one_way_fee")).toBeVisible();
@@ -366,11 +362,9 @@ test.describe("FleetHub release validation — hosted staging only", () => {
     await expect(page.locator("#pickup_branch_id")).toHaveValue(selectedPickupBranch);
     await expect(page.locator("#return_branch_id")).toHaveValue(selectedReturnBranch);
     await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-    await expectText(page, "Réservation créée");
-    const createdHref = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-    expect(createdHref).toMatch(/\/agency\/reservations\/[0-9a-f-]+$/i);
-    await page.goto(createdHref!, { waitUntil: "domcontentloaded" });
-    const reservationId = idFromUrl(page.url(), "reservations");
+    await expect.poll(async () => (await one("reservations", { notes: marker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+    const reservationId = String((await one("reservations", { notes: marker }))?.id);
+    await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
     const created = await one("reservations", { id: reservationId });
     expect(created?.pickup_branch_id).toBe(selectedPickupBranch);
     expect(created?.return_branch_id).not.toBe(created?.pickup_branch_id);

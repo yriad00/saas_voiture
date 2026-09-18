@@ -64,6 +64,79 @@ export type ContractDetail = ContractRow & {
   financials: NonNullable<Awaited<ReturnType<typeof getContractFinancials>>>;
 };
 
+export type ContractCritical = ContractRow & {
+  customer: ContractDetail["customer"];
+  vehicle: ContractDetail["vehicle"];
+  reservationRef: string | null;
+  pickupLocation: string | null;
+  returnLocation: string | null;
+  deposit: ContractDetail["deposit"];
+  financials: ContractDetail["financials"];
+  depositCollected: number;
+  refundTotal: number;
+  preparation: Record<string, unknown> | null;
+  checkout: Record<string, unknown> | null;
+  checkin: Record<string, unknown> | null;
+};
+
+/**
+ * Loads only the data needed to render the top of a rental dossier.  History,
+ * signed photos, invoices and operational panels stay in getContract and are
+ * fetched by the deferred secondary section.
+ */
+export async function getContractCritical(id: string, agencyId: string): Promise<ContractCritical | null> {
+  const supabase = await createClient();
+  const { data } = await measurePerf("contract.critical.primary", async () => supabase
+    .from("contracts")
+    .select("*, customers!contracts_customer_id_fkey!inner(id, first_name, last_name, phone, whatsapp, email, id_type, id_number, driver_license_number, driver_license_expiry, passport_expiry, nationality), vehicles!inner(id, brand, model, license_plate, year, category, fuel_type, transmission, ownership_type, owner_name, owner_phone, owner_cost_per_day), reservations(reference, pickup_location, return_location)")
+    .eq("id", id)
+    .eq("agency_id", agencyId)
+    .maybeSingle());
+  if (!data) return null;
+
+  const c = data.customers as unknown as ContractDetail["customer"] & { first_name?: string; last_name?: string };
+  const v = data.vehicles as unknown as ContractDetail["vehicle"] & { brand?: string; model?: string; license_plate?: string };
+  const resv = data.reservations as unknown as { reference: string; pickup_location: string | null; return_location: string | null } | null;
+  const paymentsQuery = measurePerf("contract.critical.payments", async () => supabase.from("payments").select("amount,type,status").eq("contract_id", id).eq("agency_id", agencyId));
+  const depositQuery = measurePerf("contract.critical.deposit", async () => (supabase as any).from("deposits").select("id,branch_id,required_amount,received_amount,held_amount,deducted_amount,refunded_amount,status,payment_method,cheque_status").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
+  const chargesQuery = measurePerf("contract.critical.returnCharges", async () => (supabase as any).from("return_charges").select("amount").eq("contract_id", id).eq("agency_id", agencyId));
+  const preparationQuery = measurePerf("contract.critical.preparation", async () => supabase.from("vehicle_preparations").select("status").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
+  const checkoutQuery = measurePerf("contract.critical.checkout", async () => supabase.from("contract_checkouts").select("id,checkout_at,mileage,fuel_level").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
+  const checkinQuery = measurePerf("contract.critical.checkin", async () => (supabase as any).from("contract_checkins").select("id,status,actual_return_at,return_mileage,fuel_level").eq("contract_id", id).eq("agency_id", agencyId).maybeSingle());
+  const [{ data: payments }, { data: deposit }, { data: charges }, { data: preparation }, { data: checkout }, { data: checkin }] = await Promise.all([paymentsQuery, depositQuery, chargesQuery, preparationQuery, checkoutQuery, checkinQuery]);
+  const depositTransactions = deposit?.id
+    ? await measurePerf("contract.critical.depositTransactions", () => (supabase as any).from("deposit_transactions").select("transaction_type,amount,settles_balance,deposit_id").eq("agency_id", agencyId).eq("deposit_id", deposit.id)).then((result: any) => result.data ?? [])
+    : [];
+  const financials = await measurePerf("contract.critical.financials", () => getContractFinancials(supabase, agencyId, id, {
+    contract: data as unknown as Record<string, unknown>,
+    payments: (payments ?? []) as Array<{ amount: number | string; type: string; status: string }>,
+    deposit: (deposit ?? null) as Record<string, unknown> | null,
+    depositTransactions,
+    returnCharges: (charges ?? []) as Array<{ amount: number | string }>,
+  }));
+  const fallback = {
+    rentalSubtotal: Number(data.total_amount), returnChargesTotal: 0, calculatedTotal: Number(data.total_amount), grandTotal: Number(data.total_amount),
+    rentalPaidTotal: 0, refundTotal: 0, paidTotal: 0, amountDue: Number(data.total_amount), depositSettlementAmount: 0,
+    depositRequired: 0, depositReceived: 0, depositHeld: 0, depositDeducted: 0, depositRefunded: 0, depositAvailable: 0,
+  };
+  const totals = financials ?? fallback;
+  return {
+    ...(data as ContractRow),
+    customer: { id: c.id, name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(), phone: c.phone ?? null, whatsapp: c.whatsapp ?? null, email: c.email ?? null, id_type: c.id_type ?? null, id_number: c.id_number ?? null, driver_license_number: c.driver_license_number ?? null, driver_license_expiry: c.driver_license_expiry ?? null, passport_expiry: c.passport_expiry ?? null, nationality: c.nationality ?? null },
+    vehicle: { id: v.id, label: `${v.brand ?? ""} ${v.model ?? ""}`.trim(), plate: v.license_plate ?? "", year: v.year ?? null, category: v.category ?? null, fuel_type: v.fuel_type ?? null, transmission: v.transmission ?? null, ownership_type: v.ownership_type ?? null, owner_name: v.owner_name ?? null, owner_phone: v.owner_phone ?? null, owner_cost_per_day: v.owner_cost_per_day ?? null },
+    reservationRef: resv?.reference ?? null,
+    pickupLocation: resv?.pickup_location ?? null,
+    returnLocation: resv?.return_location ?? null,
+    deposit: (deposit ?? null) as ContractDetail["deposit"],
+    financials: totals,
+    depositCollected: totals.depositAvailable,
+    refundTotal: totals.refundTotal,
+    preparation: (preparation ?? null) as Record<string, unknown> | null,
+    checkout: (checkout ?? null) as Record<string, unknown> | null,
+    checkin: (checkin ?? null) as Record<string, unknown> | null,
+  };
+}
+
 export async function getContract(id: string, agencyId: string): Promise<ContractDetail | null> {
   const supabase = await createClient();
   const { data } = await measurePerf("contract.primary", async () =>

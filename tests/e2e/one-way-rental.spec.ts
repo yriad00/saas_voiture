@@ -83,13 +83,14 @@ test("one-way rental completes from Casablanca pickup to Marrakech return in the
   await page.locator("#one_way_fee").fill("200");
   await page.locator("#daily_rate").fill("280");
   await page.locator("#deposit_amount").fill("3000");
-  await page.locator("#notes").fill("TEST_E2E one-way Casablanca → Marrakech");
+  const reservationMarker = `TEST_E2E one-way Casablanca → Marrakech ${Date.now()}`;
+  await page.locator("#notes").fill(reservationMarker);
   await page.getByRole("button", { name: "Créer la réservation", exact: true }).click();
-  await expect(page.getByText("Réservation créée", { exact: true })).toBeVisible();
-  const reservationHref = await page.getByRole("link", { name: "Ouvrir la réservation", exact: true }).getAttribute("href");
-  if (!reservationHref) throw new Error("One-way reservation link missing");
-  await page.goto(reservationHref, { waitUntil: "domcontentloaded" });
-  const reservationId = new URL(page.url()).pathname.split("/").pop()!;
+  // The form uses a JSON API transport. The persisted reservation is the
+  // durable success signal; a transient success panel/toast is not.
+  await expect.poll(async () => (await one("reservations", { notes: reservationMarker }))?.id ?? null, { timeout: 60_000 }).not.toBeNull();
+  const reservationId = String((await one("reservations", { notes: reservationMarker }))?.id);
+  await page.goto(`/agency/reservations/${reservationId}`, { waitUntil: "domcontentloaded" });
   const reservation = await one("reservations", { id: reservationId });
   expect(reservation?.pickup_branch_id).toBe(fixture.branches.casablanca);
   expect(reservation?.return_branch_id).toBe(fixture.branches.marrakech);

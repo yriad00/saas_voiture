@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createReservation } from "@/app/agency/reservations/actions";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 
 export const runtime = "nodejs";
 
@@ -10,8 +11,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) {
+    if (!isSameOriginRequest(request)) {
       return NextResponse.json({ error: "Requête non autorisée." }, { status: 403, headers: { "cache-control": "no-store" } });
     }
     const result = await createReservation({}, await request.formData());
