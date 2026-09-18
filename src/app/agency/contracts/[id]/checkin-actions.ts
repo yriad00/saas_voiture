@@ -32,7 +32,6 @@ export async function saveCheckin(_prev: CheckinState, formData: FormData): Prom
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Valeurs invalides." };
   const d = parsed.data;
   const reject = (message: string, review?: CheckinState["review"]): CheckinState => {
-    console.warn(`[checkin] rejected ${d.contract_id}: ${message}`);
     return review ? { error: message, review } : { error: message };
   };
   let actualReturnAt: string;
