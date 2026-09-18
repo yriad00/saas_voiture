@@ -24,7 +24,7 @@ export default async function NewPaymentPage({
     .from("reservations")
     .select("id, reference, customer_id, customers!reservations_customer_id_fkey!inner(first_name, last_name)")
     .eq("agency_id", ctx.membership.agencyId)
-    .in("status", ["PENDING", "CONFIRMED", "CANCELLED", "NO_SHOW"])
+    .in("status", ["PENDING", "CONFIRMED", "ONGOING", "COMPLETED", "CANCELLED", "NO_SHOW"])
     .order("created_at", { ascending: false })]);
 
   const contracts = (data ?? []).map((c) => {
