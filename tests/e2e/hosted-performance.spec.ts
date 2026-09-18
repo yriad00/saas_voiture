@@ -24,13 +24,18 @@ test("hosted staging route performance baseline", async ({ page }) => {
   let contractFullMs: number | null = null;
   for (const [name, route] of routes) {
     const started = Date.now();
-    await page.goto(route, { waitUntil: "domcontentloaded" });
-    await expect(page.locator("main")).toBeVisible();
     if (name === "Contract detail") {
+      // Commit returns as soon as the streamed response starts. Measuring from
+      // this point avoids hiding the critical-first render behind the route's
+      // eventual load event.
+      await page.goto(route, { waitUntil: "commit" });
       await expect(page.getByTestId("contract-critical")).toBeVisible();
       contractCriticalMs = Date.now() - started;
       await expect(page.locator("#finances")).toBeVisible();
       contractFullMs = Date.now() - started;
+    } else {
+      await page.goto(route, { waitUntil: "domcontentloaded" });
+      await expect(page.locator("main")).toBeVisible();
     }
     measurements[name] = Date.now() - started;
   }
