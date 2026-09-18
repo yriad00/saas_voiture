@@ -79,10 +79,10 @@ export async function uploadContractPhoto(
   const { error: uploadError } = await measurePerf("photo.storage.upload", () => supabase.storage.from("contract-photos").upload(storagePath, fileValue, {
     contentType: fileValue.type,
     cacheControl: "3600",
-    // The path is derived from the idempotency key. A retry may have already
-    // uploaded the object while its response was lost, so replacing that same
-    // object is safe and avoids creating a second path.
-    upsert: true,
+    // Keep the private bucket insert-only. A deterministic path plus the
+    // metadata pre-check makes a replay idempotent without requiring a broad
+    // Storage UPDATE policy.
+    upsert: false,
   }));
   if (uploadError) return { error: uploadError.message };
 
