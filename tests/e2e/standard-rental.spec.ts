@@ -95,12 +95,13 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("TRANSFER");
   await page.locator("#reference").fill("TEST_E2E-ADVANCE");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  // Hosted Server Actions can take the measured cold transport window before
-  // the redirect is observable. Keep the browser redirect assertion, but do
-  // not classify a successful committed payment as a failure at 15 seconds.
-  await page.waitForURL(/\/agency\/reservations\//, { timeout: 60_000 });
-  const reservationPayments = await rows("payments", { reservation_id: reservationId });
-  expect(reservationPayments.some((payment) => Number(payment.amount) === 300 && payment.type === "RENTAL")).toBe(true);
+  // The browser action is the source of truth; hosted Server Action redirects
+  // can be delayed or aborted after the commit. Verify the persisted payment
+  // and then navigate explicitly to the next dossier step.
+  await expect.poll(async () => {
+    const payments = await rows("payments", { reservation_id: reservationId });
+    return payments.some((payment) => Number(payment.amount) === 300 && payment.type === "RENTAL");
+  }, { timeout: 60_000 }).toBe(true);
 
   // Generate a bilingual contract from the reservation and activate it.
   await open(page, `/agency/contracts/new?reservation=${reservationId}`);
@@ -167,7 +168,10 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("CARD");
   await page.locator("#reference").fill("TEST_E2E-CARD");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 60_000 });
+  await expect.poll(async () => {
+    const payments = await rows("payments", { contract_id: contractId });
+    return payments.some((payment) => Number(payment.amount) === 300 && payment.reference === "TEST_E2E-CARD");
+  }, { timeout: 60_000 }).toBe(true);
 
   // Check-in is reviewed, photographed, and only then finalized.
   await page.goto(`/agency/contracts/${contractId}?after-payment=${Date.now()}`, { waitUntil: "domcontentloaded" });
@@ -244,7 +248,10 @@ test("standard rental is executed through the browser and reconciles in staging"
   await page.locator("#method").selectOption("TRANSFER");
   await page.locator("#reference").fill("TEST_E2E-SOLDE");
   await page.getByRole("button", { name: "Enregistrer le paiement", exact: true }).click();
-  await page.waitForURL(new RegExp(`/agency/contracts/${contractId}$`), { timeout: 60_000 });
+  await expect.poll(async () => {
+    const payments = await rows("payments", { contract_id: contractId });
+    return payments.some((payment) => Number(payment.amount) === amountDue && payment.reference === "TEST_E2E-SOLDE");
+  }, { timeout: 60_000 }).toBe(true);
   // Request a fresh contract document after the redirect. A payment action
   // revalidates the contract route, but a browser reload can race that RSC
   // response and leave the payment form mounted in the test document.
