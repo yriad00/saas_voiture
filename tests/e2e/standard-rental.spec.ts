@@ -54,7 +54,10 @@ async function open(page: Page, route: string) {
 }
 
 test("standard rental is executed through the browser and reconciles in staging", async ({ page }) => {
-  test.setTimeout(300_000);
+  // The hosted candidate performs twelve private-storage uploads plus their
+  // audit writes; keep the test bounded while allowing the measured cold
+  // staging path to complete instead of closing the browser mid-workflow.
+  test.setTimeout(600_000);
   const { fixture } = context();
   const vehicleId = fixture.vehicles.free;
   if (!vehicleId) throw new Error("Synthetic free vehicle fixture is required");
