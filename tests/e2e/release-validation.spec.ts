@@ -186,7 +186,12 @@ test.describe("FleetHub release validation — hosted staging only", () => {
       : assignable[0];
     await assignSelect.selectOption(targetVehicle);
     await page.getByRole("button", { name: "Attribuer ce véhicule", exact: true }).click();
-    await expect(page.getByText("Aucun véhicule attribué", { exact: true })).toHaveCount(0, { timeout: 15_000 });
+    // Hosted Server Actions can commit the update before the RSC response is
+    // observable. Verify the actual persisted result first, then reload the
+    // dossier and assert the user-visible assigned-vehicle state.
+    await expect.poll(async () => (await one("reservations", { id: reservationId }))?.vehicle_id ?? null, { timeout: 60_000, intervals: [1_000, 2_000, 5_000] }).toBe(targetVehicle);
+    await page.goto(createdHref!, { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Aucun véhicule attribué", { exact: true })).toHaveCount(0, { timeout: 30_000 });
     const assigned = await one("reservations", { id: reservationId });
     expect(assigned?.vehicle_id).toBe(targetVehicle);
     // The server action revalidates the dossier, so the success state is
