@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, Ban, Play } from "lucide-react";
 import { closeContract, setContractStatus } from "../actions";
@@ -17,8 +17,17 @@ export function ContractActions({
   status: Enums<"contract_status">;
 }) {
   const [pending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
   const [showClose, setShowClose] = useState(false);
   const router = useRouter();
+
+  // These controls are client actions rather than native forms. Keep them
+  // disabled until React has attached the handlers so a fast click during a
+  // hosted cold render cannot be silently dropped before hydration.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const cancel = () => {
     if (!window.confirm("Annuler ce contrat ?")) return;
@@ -51,11 +60,11 @@ export function ContractActions({
   if (status === "DRAFT") {
     return (
       <div className="flex flex-wrap gap-2">
-        <Button variant="default" size="sm" disabled={pending} onClick={activate}>
+        <Button variant="default" size="sm" disabled={pending || !hydrated} onClick={activate}>
           {pending && <Loader2 className="animate-spin" />}
           <Play /> Démarrer la location
         </Button>
-        <Button variant="outline" size="sm" disabled={pending} onClick={cancel}>
+        <Button variant="outline" size="sm" disabled={pending || !hydrated} onClick={cancel}>
           <Ban /> Annuler
         </Button>
       </div>
@@ -65,10 +74,10 @@ export function ContractActions({
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Button variant="default" size="sm" disabled={pending} onClick={() => setShowClose((v) => !v)}>
+        <Button variant="default" size="sm" disabled={pending || !hydrated} onClick={() => setShowClose((v) => !v)}>
           <CheckCircle2 /> Clôturer le contrat
         </Button>
-        <Button variant="outline" size="sm" disabled={pending} onClick={cancel}>
+        <Button variant="outline" size="sm" disabled={pending || !hydrated} onClick={cancel}>
           <Ban /> Annuler
         </Button>
       </div>

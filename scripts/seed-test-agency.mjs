@@ -1,16 +1,18 @@
 /**
  * Seed a demo agency + owner for testing the agency space.
- *   node --env-file=.env.local scripts/seed-test-agency.mjs
+ *   node --env-file=.env.test.local scripts/seed-test-agency.mjs
  * Safe to re-run: reuses the owner user if it already exists.
  */
 import { createClient } from "@supabase/supabase-js";
+import { assertStagingTarget } from "./staging-target.mjs";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key || key === "PASTE_SERVICE_ROLE_KEY_HERE") {
-  console.error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
+const url = process.env.FLEETHUB_TEST_SUPABASE_URL;
+const key = process.env.FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY;
+if (!url || !key) {
+  console.error("Missing FLEETHUB_TEST_SUPABASE_URL / FLEETHUB_TEST_SUPABASE_SERVICE_ROLE_KEY.");
   process.exit(1);
 }
+assertStagingTarget(url, "FLEETHUB_TEST_SUPABASE_URL");
 
 const EMAIL = process.argv[2] || "agence@demo.ma";
 const PASSWORD = process.argv[3] || "Demo!2026";
